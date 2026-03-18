@@ -1,0 +1,4158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Karnataka District Weather Forecast — IMD MOD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/interact.js/1.10.27/interact.min.js"></script>
+<style>
+  :root {
+    --bg: #04080f;
+    --panel: #080e1c;
+    --border: #162035;
+    --accent: #00e5ff;
+    --accent2: #ff4d6d;
+    --accent3: #00ff9f;
+    --accent4: #c77dff;
+    --accent5: #ffd60a;
+    --text: #d0e8ff;
+    --muted: #3d5a7a;
+    --warn: #ffb020;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* HEADER */
+  header {
+    flex-shrink: 0;
+    background: linear-gradient(90deg, #080e1c 0%, #0d1528 50%, #080e1c 100%);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 1px 18px rgba(0,229,255,0.08);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 16px;
+    position: relative;
+  }
+  .header-logo {
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    font-weight: 800;
+    background: linear-gradient(90deg, #00e5ff, #c77dff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .header-sep { width: 1px; height: 28px; background: var(--border); }
+  .header-title {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 300;
+    letter-spacing: 1px;
+  }
+  .header-meta {
+    margin-left: auto;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+  .live-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent3);
+    box-shadow: 0 0 8px var(--accent3);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, #080e1c 0%, #060c18 100%);
+    border-right: 1px solid transparent;
+    border-image: linear-gradient(180deg, #00e5ff33, #c77dff33, #00ff9f22) 1;
+    overflow: hidden;
+  }
+
+  .section-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--accent4);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  /* DATE SELECTOR */
+  .date-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .date-tab {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.15s;
+    background: transparent;
+    color: var(--text);
+    font-size: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .date-tab:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,0.04); }
+  .date-tab.active {
+    background: linear-gradient(90deg, rgba(0,229,255,0.12), rgba(199,125,255,0.08));
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: inset 3px 0 0 var(--accent), 0 0 12px rgba(0,229,255,0.1);
+  }
+  .date-tab .day-label { font-size: 9px; color: var(--muted); }
+  .date-tab.active .day-label { color: var(--accent4); opacity: 0.9; }
+
+  /* PARAMETER SELECTOR */
+  .param-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .param-btn {
+    padding: 8px 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text);
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    text-align: center;
+    transition: all 0.15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+  .param-btn .param-icon { font-size: 16px; }
+  .param-btn:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(255,77,109,0.05); }
+  .param-btn.active {
+    background: linear-gradient(135deg, rgba(255,77,109,0.15), rgba(199,125,255,0.1));
+    border-color: var(--accent2);
+    color: var(--accent2);
+    box-shadow: 0 0 14px rgba(255,77,109,0.25), inset 0 0 8px rgba(255,77,109,0.05);
+  }
+
+  /* LEGEND */
+  .legend-bar {
+    height: 10px;
+    border-radius: 5px;
+    position: relative;
+    margin-top: 4px;
+  }
+  .legend-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .legend-unit {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    margin-top: 6px;
+    text-align: center;
+  }
+
+  /* MAP */
+  #map {
+    width: 100%;
+    height: 100%;
+    background: var(--bg);
+  }
+
+  /* INFO PANEL */
+  .infopanel {
+    background: linear-gradient(180deg, #080e1c 0%, #060c18 100%);
+    border-left: 1px solid transparent;
+    border-image: linear-gradient(180deg, #c77dff33, #00e5ff33, #00ff9f22) 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .district-card {
+    background: linear-gradient(135deg, #07101f, #050d18);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    transition: all 0.2s;
+  }
+  .district-card.highlighted {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px rgba(0,229,255,0.18), 0 0 40px rgba(199,125,255,0.08);
+    background: linear-gradient(135deg, #081420, #07101c);
+  }
+  .district-card-name {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(26,42,69,0.5);
+    font-size: 11px;
+  }
+  .metric-row:last-child { border-bottom: none; }
+  .metric-label { color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 10px; }
+  .metric-val { font-family: 'IBM Plex Mono', monospace; font-weight: 500; }
+  .warn-badge {
+    display: inline-block;
+    background: rgba(255,176,32,0.15);
+    border: 1px solid var(--warn);
+    color: var(--warn);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-family: 'IBM Plex Mono', monospace;
+    margin-top: 6px;
+    letter-spacing: 0.5px;
+  }
+
+  .no-selection {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    text-align: center;
+    padding: 20px;
+  }
+  .no-selection .icon { font-size: 32px; opacity: 0.4; }
+
+  /* Stats summary */
+  .stats-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .stat-box {
+    background: linear-gradient(135deg, #07101f, #060d1a);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px;
+    text-align: center;
+  }
+  .stat-box:first-child { border-top: 2px solid var(--accent2); }
+  .stat-box:nth-child(2) { border-top: 2px solid var(--accent); }
+  .stat-box:last-child { border-top: 2px solid var(--accent3); grid-column: span 2; }
+  .stat-val {
+    font-family: 'Orbitron', monospace;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .stat-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    margin-top: 2px;
+    letter-spacing: 1px;
+  }
+
+  /* Tooltip */
+  .leaflet-tooltip-custom {
+    background: rgba(4,8,15,0.97) !important;
+    border: 1px solid var(--accent) !important;
+    border-top: 2px solid var(--accent4) !important;
+    border-radius: 6px !important;
+    padding: 10px 12px !important;
+    color: var(--text) !important;
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-size: 11px !important;
+    box-shadow: 0 0 24px rgba(0,229,255,0.22), 0 0 8px rgba(199,125,255,0.12) !important;
+    white-space: nowrap;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.04) 2px,
+      rgba(0,0,0,0.04) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Wind arrow SVG inline */
+  .wind-arrow { display: inline-block; }
+
+  /* AGRO-MET STATION MARKERS */
+  .agro-marker {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; position: relative;
+  }
+  .agro-marker-inner {
+    width: 40px; height: 40px;
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .agro-marker-inner.selected {
+    filter: drop-shadow(0 0 8px rgba(57,255,110,0.8));
+  }
+  .agro-label {
+    font-family: 'IBM Plex Mono', monospace; font-size: 7px; font-weight: 600;
+    color: #39ff6e; letter-spacing: 0.5px; margin-top: 2px;
+    text-shadow: 0 0 6px rgba(57,255,110,0.8); white-space: nowrap;
+  }
+
+  /* WEEKLY FORECAST TABLE */
+  .weekly-forecast {
+    margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px;
+  }
+  .weekly-header {
+    font-family: 'IBM Plex Mono', monospace; font-size: 8px; color: var(--muted);
+    letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .weekly-header::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+  .weekly-table {
+    width: 100%; border-collapse: collapse;
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px;
+  }
+  .weekly-table th {
+    color: var(--muted); font-weight: 400; padding: 3px 4px; text-align: center;
+    border-bottom: 1px solid var(--border); font-size: 8px; letter-spacing: 0.5px;
+  }
+  .weekly-table td {
+    padding: 4px 3px; text-align: center; border-bottom: 1px solid rgba(26,42,69,0.4);
+  }
+  .weekly-table tr.current-day td { background: rgba(0,212,255,0.06); }
+  .weekly-table tr.current-day td:first-child { 
+    border-left: 2px solid var(--accent); padding-left: 5px;
+  }
+  .wk-day { color: var(--text); font-size: 8px; }
+  .wk-tmax { color: #ff8060; font-weight: 500; }
+  .wk-tmin { color: #80d0ff; font-weight: 500; }
+  .wk-rain { color: #60c0ff; }
+  .wk-rain-dot {
+    display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+    background: #60c0ff; margin-right: 2px; vertical-align: middle;
+    opacity: 0.7;
+  }
+
+  /* WARNING SECTOR */
+  .warn-sector {
+    margin-top: 8px; border: 1px solid rgba(255,176,32,0.3);
+    border-radius: 5px; overflow: hidden;
+    background: rgba(255,176,32,0.04);
+  }
+  .warn-sector-header {
+    padding: 5px 9px; background: rgba(255,176,32,0.1);
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px;
+    color: var(--warn); letter-spacing: 1.5px; display: flex;
+    align-items: center; gap: 5px;
+  }
+  .warn-sector-body {
+    padding: 7px 9px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px;
+    color: #ffd580; line-height: 1.6;
+  }
+  .warn-none {
+    color: var(--muted); font-style: italic; font-size: 9px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  /* 5-DAY SUMMARY PANEL (sidebar) */
+  .summary-panel {
+    background: linear-gradient(135deg, #07101f, #050d18); border: 1px solid var(--border);
+    border-radius: 6px; overflow: hidden;
+    border-top: 1px solid rgba(0,229,255,0.3);
+  }
+  .summary-panel-header {
+    padding: 6px 10px; background: linear-gradient(90deg, rgba(0,229,255,0.08), rgba(199,125,255,0.06));
+    border-bottom: 1px solid var(--border);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px; letter-spacing: 2px;
+    color: var(--accent); text-transform: uppercase;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .summary-district-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px; color: #ffe033; font-weight: 600;
+    letter-spacing: 0.5px;
+    text-shadow: 0 0 8px rgba(255,224,51,0.5);
+    padding: 4px 10px 3px;
+    border-bottom: 1px solid rgba(26,42,69,0.5);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .summary-row {
+    display: flex; align-items: center;
+    padding: 3px 10px; border-bottom: 1px solid rgba(26,42,69,0.35);
+    gap: 4px;
+  }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-icon { font-size: 11px; flex-shrink: 0; width: 16px; }
+  .summary-key {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px; color: var(--muted); flex: 1; letter-spacing: 0.3px;
+  }
+  .summary-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; font-weight: 500; text-align: right;
+  }
+  .summary-empty {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px; color: var(--muted);
+    padding: 10px; text-align: center; font-style: italic;
+  }
+  .summary-rain-block {
+    padding: 3px 10px 4px; border-bottom: 1px solid rgba(26,42,69,0.35);
+  }
+  .summary-rain-line {
+    display: flex; align-items: center; gap: 4px;
+  }
+  .summary-rain-sub {
+    display: flex; justify-content: flex-end;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px; color: var(--muted); padding-left: 20px;
+    margin-top: 1px;
+  }
+
+  /* AGRO-MET BADGE in infopanel */
+  .agro-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(57,255,110,0.08); border: 1px solid rgba(57,255,110,0.3);
+    color: #39ff6e; padding: 2px 7px; border-radius: 3px;
+    font-size: 8px; font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 1px; margin-bottom: 6px;
+  }
+
+  .scroll-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .scroll-list::-webkit-scrollbar { width: 3px; }
+  .scroll-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .dist-list-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    transition: background 0.1s;
+  }
+  .dist-list-item:hover { background: rgba(0,212,255,0.06); }
+  .dist-list-item.selected { background: rgba(0,212,255,0.1); color: var(--accent); }
+  .dist-list-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dist-list-name { flex: 1; text-overflow: ellipsis; overflow: hidden; }
+  .dist-list-val { color: var(--accent); font-weight: 500; }
+
+  /* ── UPLOAD AREA ───────────────────────────────────── */
+  .upload-section {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; overflow: hidden;
+  }
+  .upload-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; cursor: pointer; user-select: none;
+    transition: background 0.15s;
+  }
+  .upload-header:hover { background: rgba(0,212,255,0.04); }
+  .upload-header-left {
+    display: flex; align-items: center; gap: 7px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted);
+  }
+  .upload-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--muted);
+    flex-shrink: 0; transition: background 0.3s, box-shadow 0.3s;
+  }
+  .upload-dot.ready { background: var(--accent3); box-shadow: 0 0 7px var(--accent3); animation: pulse 2s infinite; }
+  .upload-dot.error { background: #ff4d4d; box-shadow: 0 0 7px rgba(255,77,77,0.7); }
+  .upload-chevron { font-size: 9px; color: var(--muted); transition: transform 0.2s; }
+  .upload-chevron.open { transform: rotate(180deg); }
+  .upload-body {
+    border-top: 1px solid var(--border);
+    padding: 12px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .drop-zone {
+    border: 1.5px dashed var(--muted); border-radius: 5px;
+    padding: 20px 12px; text-align: center; cursor: pointer;
+    position: relative; transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  }
+  .drop-zone:hover { border-color: var(--accent); background: rgba(0,212,255,0.04); }
+  .drop-zone.drag-active {
+    border-color: var(--accent); border-style: solid; background: rgba(0,212,255,0.07);
+    box-shadow: 0 0 20px rgba(0,212,255,0.15), inset 0 0 20px rgba(0,212,255,0.05);
+  }
+  .drop-zone.success-state { border-color: var(--accent3); border-style: solid; background: rgba(57,255,110,0.05); }
+  .drop-zone.error-state   { border-color: #ff4d4d; border-style: solid; background: rgba(255,77,77,0.05); }
+  .drop-zone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .dz-icon { font-size: 22px; display: block; margin-bottom: 8px; line-height: 1; transition: transform 0.2s; }
+  .drop-zone.drag-active .dz-icon { transform: scale(1.2) translateY(-2px); }
+  .dz-title { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+  .dz-sub   { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--muted); line-height: 1.5; }
+  .type-badges { display: flex; justify-content: center; gap: 5px; margin-top: 10px; flex-wrap: wrap; }
+  .type-badge {
+    font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 1.5px;
+    padding: 2px 7px; border-radius: 3px; border: 1px solid var(--border); color: var(--muted);
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .drop-zone:hover .type-badge,
+  .drop-zone.drag-active .type-badge { border-color: rgba(0,212,255,0.3); color: var(--accent); }
+  .progress-wrap { display: flex; flex-direction: column; gap: 5px; }
+  .progress-row  { display: flex; justify-content: space-between; align-items: center; }
+  .progress-stage { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--muted); }
+  .progress-pct   { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--accent); font-weight: 500; min-width: 28px; text-align: right; }
+  .progress-track { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .progress-fill  {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent3));
+    border-radius: 2px; transition: width 0.25s ease;
+    box-shadow: 0 0 8px rgba(0,212,255,0.5);
+  }
+  .progress-fill.complete { background: linear-gradient(90deg, var(--accent3), #22c55e); box-shadow: 0 0 8px rgba(57,255,110,0.5); }
+  .progress-fill.errored  { background: linear-gradient(90deg, #ff4d4d, #ff8080);       box-shadow: 0 0 8px rgba(255,77,77,0.5);  }
+  .status-msg {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; line-height: 1.5;
+    padding: 8px 10px; border-radius: 4px; border: 1px solid; display: none;
+    animation: fadeSlideIn 0.2s ease;
+  }
+  @keyframes fadeSlideIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
+  .status-success { color: var(--accent3); border-color: rgba(57,255,110,0.25); background: rgba(57,255,110,0.06); }
+  .status-error   { color: #ff7070;        border-color: rgba(255,77,77,0.25);  background: rgba(255,77,77,0.06);  }
+  .file-pill {
+    display: none; align-items: center; gap: 8px;
+    background: rgba(0,212,255,0.06); border: 1px solid rgba(0,212,255,0.2);
+    border-radius: 4px; padding: 7px 10px; animation: fadeSlideIn 0.2s ease;
+  }
+  .file-pill-icon { font-size: 14px; flex-shrink: 0; }
+  .file-pill-info { flex: 1; min-width: 0; }
+  .file-pill-name { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-pill-meta { font-family: 'IBM Plex Mono', monospace; font-size: 8px; color: var(--muted); margin-top: 1px; }
+  .file-pill-clear {
+    font-size: 11px; color: var(--muted); cursor: pointer; padding: 2px 4px;
+    border-radius: 3px; background: none; border: none; transition: color 0.15s, background 0.15s;
+  }
+  .file-pill-clear:hover { color: #ff7070; background: rgba(255,77,77,0.1); }
+
+
+/* ═══════════════════════════════════════════════════════
+   LAYOUT MANAGER — drag, resize, presets, panel toggles
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Layout canvas: base is CSS grid (default layout) ── */
+#layout-canvas {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 340px 1fr 320px;
+  grid-template-rows: 1fr;
+  grid-template-areas: "sidebar map infopanel";
+}
+
+/* ── Panels in default grid mode ── */
+#layout-canvas .sidebar   { grid-area: sidebar; min-width: 0; height: 100%; }
+#layout-canvas #map       { grid-area: map;     min-width: 0; height: 100%; }
+#layout-canvas .infopanel { grid-area: infopanel; min-width: 0; height: 100%; }
+
+/* ── FREE LAYOUT MODE ── */
+#layout-canvas.free-layout {
+  display: block;
+}
+#layout-canvas.free-layout .sidebar,
+#layout-canvas.free-layout #map,
+#layout-canvas.free-layout .infopanel {
+  position: absolute;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+#layout-canvas.free-layout .sidebar   { border-right: 1px solid transparent; border-image: none; }
+#layout-canvas.free-layout .infopanel { border-left: 1px solid transparent;  border-image: none; }
+
+/* ── EDIT MODE: show drag handles + resize handles ── */
+body.layout-edit #layout-canvas {
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 39px,
+    rgba(0,229,255,0.03) 39px, rgba(0,229,255,0.03) 40px
+  ),
+  repeating-linear-gradient(
+    90deg, transparent, transparent 39px,
+    rgba(0,229,255,0.03) 39px, rgba(0,229,255,0.03) 40px
+  );
+}
+body.layout-edit #layout-canvas .sidebar,
+body.layout-edit #layout-canvas #map,
+body.layout-edit #layout-canvas .infopanel {
+  border: 1.5px dashed rgba(0,229,255,0.5) !important;
+  border-image: none !important;
+  box-shadow: 0 0 0 1px rgba(0,229,255,0.1), 0 4px 24px rgba(0,0,0,0.5) !important;
+}
+body.layout-edit #layout-canvas .sidebar:hover,
+body.layout-edit #layout-canvas #map:hover,
+body.layout-edit #layout-canvas .infopanel:hover {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 1px rgba(0,229,255,0.3), 0 0 20px rgba(0,229,255,0.15) !important;
+}
+
+/* ── Panel drag handle bar (shown in edit mode) ── */
+.panel-drag-handle {
+  display: none;
+  width: 100%;
+  height: 28px;
+  background: linear-gradient(90deg, rgba(0,229,255,0.08), rgba(199,125,255,0.06));
+  border-bottom: 1px solid rgba(0,229,255,0.2);
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+  z-index: 2;
+  touch-action: none;
+}
+.panel-drag-handle:active { cursor: grabbing; }
+body.layout-edit .panel-drag-handle { display: flex; }
+.panel-drag-dots {
+  display: flex; gap: 3px;
+}
+.panel-drag-dots span {
+  display: block; width: 3px; height: 3px;
+  border-radius: 50%; background: var(--muted);
+}
+body.layout-edit .panel-drag-handle:hover .panel-drag-dots span { background: var(--accent); }
+.panel-drag-label {
+  font-family: 'IBM Plex Mono', monospace; font-size: 8px;
+  letter-spacing: 2px; color: var(--muted); text-transform: uppercase;
+}
+body.layout-edit .panel-drag-handle:hover .panel-drag-label { color: var(--accent); }
+.panel-hide-btn {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  font-size: 10px; padding: 2px 4px; border-radius: 3px;
+  font-family: 'IBM Plex Mono', monospace;
+  transition: color 0.15s, background 0.15s;
+}
+.panel-hide-btn:hover { color: var(--accent2); background: rgba(255,77,109,0.1); }
+
+/* ── Resize handle ── */
+.resize-handle {
+  display: none;
+  position: absolute;
+  background: rgba(0,229,255,0.15);
+  border: 1px solid rgba(0,229,255,0.4);
+  border-radius: 2px;
+  z-index: 10;
+  transition: background 0.15s, border-color 0.15s;
+}
+.resize-handle:hover { background: rgba(0,229,255,0.35); border-color: var(--accent); }
+body.layout-edit .resize-handle { display: block; }
+
+.resize-se { bottom: 4px; right: 4px; width: 14px; height: 14px; cursor: se-resize;
+  border-radius: 0 0 4px 0; }
+.resize-e  { right: 0; top: 30%; height: 40%; width: 6px; cursor: e-resize; border-radius: 2px 0 0 2px; }
+.resize-s  { bottom: 0; left: 30%; width: 40%; height: 6px; cursor: s-resize; border-radius: 2px 2px 0 0; }
+.resize-n  { top: 0; left: 30%; width: 40%; height: 6px; cursor: n-resize; border-radius: 0 0 2px 2px; }
+.resize-w  { left: 0; top: 30%; height: 40%; width: 6px; cursor: w-resize; border-radius: 0 2px 2px 0; }
+
+/* ── LAYOUT TOOLBAR (header right side) ── */
+.layout-toolbar {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.layout-edit-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(0,229,255,0.08);
+  border: 1px solid rgba(0,229,255,0.3);
+  color: var(--accent);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px; letter-spacing: 2px;
+  padding: 5px 12px; border-radius: 4px;
+  cursor: pointer; text-transform: uppercase;
+  transition: all 0.15s;
+}
+.layout-edit-btn:hover { background: rgba(0,229,255,0.15); border-color: var(--accent); }
+body.layout-edit .layout-edit-btn {
+  background: rgba(0,255,159,0.12);
+  border-color: var(--accent3);
+  color: var(--accent3);
+  box-shadow: 0 0 12px rgba(0,255,159,0.2);
+}
+.layout-edit-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); animation: pulse 2s infinite;
+}
+body.layout-edit .layout-edit-dot { background: var(--accent3); }
+
+/* ── LAYOUT PANEL (flyout) ── */
+#layout-panel {
+  position: fixed;
+  top: 56px; right: 0;
+  width: 260px;
+  background: #060c18;
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-radius: 0 0 0 8px;
+  padding: 14px;
+  z-index: 1000;
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: -4px 4px 24px rgba(0,0,0,0.5);
+  animation: slideDown 0.2s ease;
+}
+@keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+#layout-panel.open { display: flex; }
+.lp-section-label {
+  font-family: 'IBM Plex Mono', monospace; font-size: 8px;
+  letter-spacing: 3px; color: var(--accent4); text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+/* Presets */
+.preset-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+}
+.preset-btn {
+  background: rgba(0,229,255,0.04); border: 1px solid var(--border);
+  border-radius: 5px; padding: 8px 6px; cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace; font-size: 9px;
+  color: var(--muted); text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  transition: all 0.15s;
+}
+.preset-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,0.08); }
+.preset-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,0.1); box-shadow: 0 0 10px rgba(0,229,255,0.15); }
+.preset-icon { font-size: 18px; }
+.preset-preview {
+  display: flex; gap: 2px; align-items: stretch;
+  width: 100%; height: 24px;
+}
+.preset-preview div {
+  border-radius: 2px; background: var(--border);
+  transition: background 0.15s;
+}
+.preset-btn:hover .preset-preview div,
+.preset-btn.active .preset-preview div { background: rgba(0,229,255,0.3); }
+.preset-preview .pp-map  { background: rgba(0,229,255,0.15); }
+
+/* Panel visibility toggles */
+.panel-toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 0; border-bottom: 1px solid rgba(26,42,69,0.4);
+}
+.panel-toggle-row:last-child { border-bottom: none; }
+.panel-toggle-label {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text);
+  display: flex; align-items: center; gap: 6px;
+}
+.toggle-switch {
+  position: relative; width: 32px; height: 17px;
+  background: var(--border); border-radius: 9px; cursor: pointer;
+  transition: background 0.2s; flex-shrink: 0;
+}
+.toggle-switch.on { background: var(--accent3); }
+.toggle-switch::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 13px; height: 13px; border-radius: 50%; background: #fff;
+  transition: left 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.toggle-switch.on::after { left: 17px; }
+
+/* Divider / action buttons */
+.lp-actions { display: flex; gap: 6px; }
+.lp-btn {
+  flex: 1; padding: 7px 6px;
+  background: rgba(0,229,255,0.05); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--muted); cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace; font-size: 9px;
+  letter-spacing: 1px; text-transform: uppercase;
+  transition: all 0.15s; text-align: center;
+}
+.lp-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,0.08); }
+.lp-btn.danger:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(255,77,109,0.08); }
+
+/* Size inputs */
+.snap-row {
+  display: flex; align-items: center; gap: 6px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--muted);
+}
+.snap-checkbox {
+  width: 12px; height: 12px; accent-color: var(--accent); cursor: pointer;
+}
+
+/* Hidden panel placeholder */
+.panel-hidden-placeholder {
+  display: none;
+}
+.panel-visible { display: flex !important; }
+#map.panel-visible { display: block !important; }
+
+
+  /* Sidebar inner scrollable area (below drag handle) */
+  .sidebar-inner {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .sidebar-inner::-webkit-scrollbar { width: 4px; }
+  .sidebar-inner::-webkit-scrollbar-track { background: transparent; }
+  .sidebar-inner::-webkit-scrollbar-thumb { background: linear-gradient(#00e5ff55,#c77dff55); border-radius: 2px; }
+
+  /* Infopanel inner scroll area (below drag handle) */
+  .infopanel-inner {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .infopanel-inner::-webkit-scrollbar { width: 4px; }
+  .infopanel-inner::-webkit-scrollbar-track { background: transparent; }
+  .infopanel-inner::-webkit-scrollbar-thumb { background: linear-gradient(#c77dff55,#00e5ff55); border-radius: 2px; }
+
+</style>
+</head>
+<body>
+
+<div id="layout-panel">
+  <div>
+    <div class="lp-section-label">Presets</div>
+    <div class="preset-grid" id="lp-preset-grid"></div>
+  </div>
+  <div>
+    <div class="lp-section-label">Panel Visibility</div>
+    <div id="lp-toggles"></div>
+  </div>
+  <div>
+    <div class="lp-section-label">Options</div>
+    <label class="snap-row">
+      <input type="checkbox" class="snap-checkbox" id="snapCheck" checked onchange="LM.snapToGrid=this.checked">
+      Snap to grid
+    </label>
+  </div>
+  <div class="lp-actions">
+    <div class="lp-btn" onclick="LM.applyPreset('default')">↺ Default</div>
+    <div class="lp-btn danger" onclick="LM.resetLayout()">✕ Reset All</div>
+  </div>
+</div>
+
+<header>
+  <div class="header-logo">IMD · MOD</div>
+  <div class="header-sep"></div>
+  <div class="header-title">Karnataka District Weather Forecast Dashboard</div>
+  <div class="header-meta">
+    <div class="live-dot"></div>
+    <span>ISSUE DATE: 17 MAR 2026</span>
+    <span class="header-state-tag">STATE: KARNATAKA · 30 DISTRICTS</span>
+  </div>
+  <div class="layout-toolbar">
+    <button class="layout-edit-btn" id="layoutEditBtn" onclick="LM.toggleEditMode()">
+      ⊞ LAYOUT
+    </button>
+    <button class="layout-edit-btn" id="layoutPanelBtn" onclick="LM.togglePanel_flyout()" style="background:rgba(199,125,255,0.08);border-color:rgba(199,125,255,0.3);color:var(--accent4);">
+      ⚙ PANELS
+    </button>
+  </div>
+</header>
+
+<div id="layout-canvas">
+<div class="sidebar" id="panel-sidebar">
+  <div class="sidebar-inner">
+  <!-- ── UPLOAD AREA ──────────────────────────────── -->
+  <div class="upload-section" id="uploadSection">
+
+    <!-- Collapsible header -->
+    <div class="upload-header" onclick="toggleUpload()">
+      <div class="upload-header-left">
+        <span class="upload-dot" id="uploadDot"></span>
+        Upload Excel
+      </div>
+      <span class="upload-chevron open" id="uploadChevron">▼</span>
+    </div>
+
+    <!-- Body (open by default) -->
+    <div class="upload-body" id="uploadBody">
+
+      <!-- Drop Zone -->
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv"
+               onchange="handleFileSelect(this.files[0])">
+        <span class="dz-icon" id="dzIcon">📂</span>
+        <div class="dz-title" id="dzTitle">Drop file here</div>
+        <div class="dz-sub"   id="dzSub">or click to browse your computer</div>
+        <div class="type-badges">
+          <span class="type-badge">.XLSX</span>
+          <span class="type-badge">.XLS</span>
+          <span class="type-badge">.CSV</span>
+        </div>
+      </div>
+
+      <!-- Progress bar (hidden until parsing) -->
+      <div class="progress-wrap" id="uploadProgress" style="display:none">
+        <div class="progress-row">
+          <span class="progress-stage" id="progressStage">Reading…</span>
+          <span class="progress-pct"   id="progressPct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+      </div>
+
+      <!-- Status messages -->
+      <div class="status-msg status-success" id="uploadSuccess"></div>
+      <div class="status-msg status-error"   id="uploadError"></div>
+
+      <!-- File info pill (shown after success) -->
+      <div class="file-pill" id="filePill">
+        <span class="file-pill-icon">📊</span>
+        <div class="file-pill-info">
+          <div class="file-pill-name" id="pillName">—</div>
+          <div class="file-pill-meta" id="pillMeta">—</div>
+        </div>
+        <button class="file-pill-clear" onclick="clearUpload()" title="Clear file">✕</button>
+      </div>
+
+    </div><!-- /upload-body -->
+  </div><!-- /upload-section -->
+
+  <!-- Date Section -->
+  <div>
+    <div class="section-label">Forecast Date</div>
+    <div class="date-tabs" id="dateTabs"></div>
+  </div>
+
+  <!-- 5-Day Summary -->
+  <div>
+    <div class="section-label">5-Day Summary</div>
+    <div class="summary-panel" id="summaryPanel">
+      <div class="summary-empty">Select a district to view 5-day summary</div>
+    </div>
+  </div>
+
+  <!-- Parameter Section -->
+  <div>
+    <div class="section-label">Weather Parameter</div>
+    <div class="param-grid" id="paramGrid"></div>
+  </div>
+
+  <!-- Legend -->
+  <div>
+    <div class="section-label">Color Scale</div>
+    <div class="legend-bar" id="legendBar"></div>
+    <div class="legend-labels" id="legendLabels">
+      <span id="legendMin">—</span><span id="legendMid">—</span><span id="legendMax">—</span>
+    </div>
+    <div class="legend-unit" id="legendUnit">—</div>
+  </div>
+
+  <!-- District list -->
+  <div style="flex:1">
+    <div class="section-label">Districts Ranked</div>
+    <div class="scroll-list" id="districtList"></div>
+  </div>
+  </div><!-- /sidebar-inner -->
+</div>
+
+<div id="map"></div>
+
+<div class="infopanel" id="panel-infopanel">
+  <div class="infopanel-inner">
+  <div>
+    <div class="section-label">State Summary</div>
+    <div class="stats-summary" id="statsSummary"></div>
+  </div>
+  <div>
+    <div class="section-label">District Detail</div>
+    <div id="districtDetail">
+      <div class="no-selection">
+        <div class="icon">📍</div>
+        <div>Click a district on the map to view all weather parameters</div>
+      </div>
+    </div>
+  </div>
+  </div><!-- /infopanel-inner -->
+</div>
+</div>
+
+<script>
+// ============ DATA ============
+const WEATHER_DATA = {
+  "RAMANAGARA": {
+    "03/18/2026": {
+      "rainfall": 14.0,
+      "tempMax": 33.0,
+      "tempMin": 21.0,
+      "humidityI": 78.0,
+      "humidityII": 44.0,
+      "windSpeed": 8.0,
+      "windDir": 143.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 13.0,
+      "tempMax": 32.0,
+      "tempMin": 21.0,
+      "humidityI": 80.0,
+      "humidityII": 42.0,
+      "windSpeed": 8.0,
+      "windDir": 132.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 14.0,
+      "tempMax": 33.0,
+      "tempMin": 20.0,
+      "humidityI": 79.0,
+      "humidityII": 43.0,
+      "windSpeed": 8.0,
+      "windDir": 135.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 12.0,
+      "tempMax": 32.0,
+      "tempMin": 21.0,
+      "humidityI": 78.0,
+      "humidityII": 42.0,
+      "windSpeed": 6.0,
+      "windDir": 212.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 12.0,
+      "tempMax": 33.0,
+      "tempMin": 21.0,
+      "humidityI": 75.0,
+      "humidityII": 40.0,
+      "windSpeed": 6.0,
+      "windDir": 90.0,
+      "cloudCover": 5.0,
+      "warning": null
+    }
+  },
+  "BANGALURU-RURAL": {
+    "03/18/2026": {
+      "rainfall": 0.0,
+      "tempMax": 33.0,
+      "tempMin": 21.0,
+      "humidityI": 78.0,
+      "humidityII": 44.0,
+      "windSpeed": 4.0,
+      "windDir": 160.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 2.0,
+      "tempMax": 32.0,
+      "tempMin": 21.0,
+      "humidityI": 80.0,
+      "humidityII": 42.0,
+      "windSpeed": 6.0,
+      "windDir": 156.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 3.0,
+      "tempMax": 33.0,
+      "tempMin": 20.0,
+      "humidityI": 79.0,
+      "humidityII": 43.0,
+      "windSpeed": 4.0,
+      "windDir": 117.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 3.0,
+      "tempMax": 32.0,
+      "tempMin": 21.0,
+      "humidityI": 78.0,
+      "humidityII": 42.0,
+      "windSpeed": 6.0,
+      "windDir": 214.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 2.0,
+      "tempMax": 33.0,
+      "tempMin": 21.0,
+      "humidityI": 75.0,
+      "humidityII": 40.0,
+      "windSpeed": 4.0,
+      "windDir": 202.0,
+      "cloudCover": 4.0,
+      "warning": null
+    }
+  },
+  "CHIKBALLAPUR": {
+    "03/18/2026": {
+      "rainfall": 0.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 80.0,
+      "humidityII": 53.0,
+      "windSpeed": 4.0,
+      "windDir": 172.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 0.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 81.0,
+      "humidityII": 54.0,
+      "windSpeed": 4.0,
+      "windDir": 165.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 2.0,
+      "tempMax": 33.0,
+      "tempMin": 18.0,
+      "humidityI": 82.0,
+      "humidityII": 55.0,
+      "windSpeed": 6.0,
+      "windDir": 124.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 2.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 81.0,
+      "humidityII": 54.0,
+      "windSpeed": 4.0,
+      "windDir": 200.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 3.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 80.0,
+      "humidityII": 53.0,
+      "windSpeed": 6.0,
+      "windDir": 217.0,
+      "cloudCover": 5.0,
+      "warning": null
+    }
+  },
+  "KOLAR": {
+    "03/18/2026": {
+      "rainfall": 0.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 80.0,
+      "humidityII": 53.0,
+      "windSpeed": 4.0,
+      "windDir": 158.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 0.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 81.0,
+      "humidityII": 54.0,
+      "windSpeed": 4.0,
+      "windDir": 140.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 2.0,
+      "tempMax": 33.0,
+      "tempMin": 18.0,
+      "humidityI": 82.0,
+      "humidityII": 55.0,
+      "windSpeed": 6.0,
+      "windDir": 146.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 3.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 81.0,
+      "humidityII": 54.0,
+      "windSpeed": 6.0,
+      "windDir": 204.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 2.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 80.0,
+      "humidityII": 53.0,
+      "windSpeed": 4.0,
+      "windDir": 212.0,
+      "cloudCover": 4.0,
+      "warning": null
+    }
+  },
+  "YADGIR": {
+    "03/18/2026": {
+      "rainfall": 0.0,
+      "tempMax": 38.0,
+      "tempMin": 22.0,
+      "humidityI": 61.0,
+      "humidityII": 35.0,
+      "windSpeed": 4.0,
+      "windDir": 170.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 1.0,
+      "tempMax": 38.0,
+      "tempMin": 22.0,
+      "humidityI": 68.0,
+      "humidityII": 36.0,
+      "windSpeed": 6.0,
+      "windDir": 141.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 2.0,
+      "tempMax": 37.0,
+      "tempMin": 21.0,
+      "humidityI": 67.0,
+      "humidityII": 35.0,
+      "windSpeed": 6.0,
+      "windDir": 58.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 0.0,
+      "tempMax": 38.0,
+      "tempMin": 22.0,
+      "humidityI": 63.0,
+      "humidityII": 36.0,
+      "windSpeed": 6.0,
+      "windDir": 105.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 0.0,
+      "tempMax": 37.0,
+      "tempMin": 22.0,
+      "humidityI": 58.0,
+      "humidityII": 34.0,
+      "windSpeed": 4.0,
+      "windDir": 100.0,
+      "cloudCover": 3.0,
+      "warning": null
+    }
+  },
+  "Gulbarga": {
+    "03/18/2026": {
+      "rainfall": 1.0,
+      "tempMax": 38.0,
+      "tempMin": 22.0,
+      "humidityI": 61.0,
+      "humidityII": 35.0,
+      "windSpeed": 6.0,
+      "windDir": 174.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 2.0,
+      "tempMax": 38.0,
+      "tempMin": 22.0,
+      "humidityI": 68.0,
+      "humidityII": 36.0,
+      "windSpeed": 6.0,
+      "windDir": 149.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 2.0,
+      "tempMax": 37.0,
+      "tempMin": 21.0,
+      "humidityI": 67.0,
+      "humidityII": 35.0,
+      "windSpeed": 6.0,
+      "windDir": 72.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 1.0,
+      "tempMax": 38.0,
+      "tempMin": 22.0,
+      "humidityI": 63.0,
+      "humidityII": 36.0,
+      "windSpeed": 6.0,
+      "windDir": 66.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 0.0,
+      "tempMax": 37.0,
+      "tempMin": 22.0,
+      "humidityI": 58.0,
+      "humidityII": 34.0,
+      "windSpeed": 4.0,
+      "windDir": 85.0,
+      "cloudCover": 3.0,
+      "warning": null
+    }
+  },
+  "CHAMARAJANAGAR": {
+    "03/18/2026": {
+      "rainfall": 2.0,
+      "tempMax": 35.0,
+      "tempMin": 17.0,
+      "humidityI": 84.0,
+      "humidityII": 45.0,
+      "windSpeed": 4.0,
+      "windDir": 164.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 3.0,
+      "tempMax": 35.0,
+      "tempMin": 18.0,
+      "humidityI": 84.0,
+      "humidityII": 46.0,
+      "windSpeed": 6.0,
+      "windDir": 164.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 3.0,
+      "tempMax": 34.0,
+      "tempMin": 17.0,
+      "humidityI": 81.0,
+      "humidityII": 45.0,
+      "windSpeed": 6.0,
+      "windDir": 202.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 4.0,
+      "tempMax": 35.0,
+      "tempMin": 18.0,
+      "humidityI": 79.0,
+      "humidityII": 46.0,
+      "windSpeed": 6.0,
+      "windDir": 191.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 3.0,
+      "tempMax": 35.0,
+      "tempMin": 17.0,
+      "humidityI": 78.0,
+      "humidityII": 47.0,
+      "windSpeed": 4.0,
+      "windDir": 135.0,
+      "cloudCover": 3.0,
+      "warning": null
+    }
+  },
+  "MYSURU": {
+    "03/18/2026": {
+      "rainfall": 2.0,
+      "tempMax": 35.0,
+      "tempMin": 17.0,
+      "humidityI": 84.0,
+      "humidityII": 45.0,
+      "windSpeed": 4.0,
+      "windDir": 238.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 3.0,
+      "tempMax": 35.0,
+      "tempMin": 18.0,
+      "humidityI": 84.0,
+      "humidityII": 46.0,
+      "windSpeed": 6.0,
+      "windDir": 214.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 4.0,
+      "tempMax": 34.0,
+      "tempMin": 17.0,
+      "humidityI": 81.0,
+      "humidityII": 45.0,
+      "windSpeed": 6.0,
+      "windDir": 246.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 3.0,
+      "tempMax": 35.0,
+      "tempMin": 18.0,
+      "humidityI": 79.0,
+      "humidityII": 46.0,
+      "windSpeed": 6.0,
+      "windDir": 234.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 3.0,
+      "tempMax": 35.0,
+      "tempMin": 17.0,
+      "humidityI": 78.0,
+      "humidityII": 47.0,
+      "windSpeed": 4.0,
+      "windDir": 360.0,
+      "cloudCover": 4.0,
+      "warning": null
+    }
+  },
+  "KODAGU": {
+    "03/18/2026": {
+      "rainfall": 5.0,
+      "tempMax": 34.0,
+      "tempMin": 13.0,
+      "humidityI": 65.0,
+      "humidityII": 36.0,
+      "windSpeed": 4.0,
+      "windDir": 315.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 7.0,
+      "tempMax": 34.0,
+      "tempMin": 14.0,
+      "humidityI": 66.0,
+      "humidityII": 38.0,
+      "windSpeed": 6.0,
+      "windDir": 198.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 8.0,
+      "tempMax": 33.0,
+      "tempMin": 13.0,
+      "humidityI": 67.0,
+      "humidityII": 37.0,
+      "windSpeed": 4.0,
+      "windDir": 360.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 7.0,
+      "tempMax": 34.0,
+      "tempMin": 14.0,
+      "humidityI": 65.0,
+      "humidityII": 39.0,
+      "windSpeed": 6.0,
+      "windDir": 360.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 5.0,
+      "tempMax": 34.0,
+      "tempMin": 14.0,
+      "humidityI": 66.0,
+      "humidityII": 38.0,
+      "windSpeed": 4.0,
+      "windDir": 297.0,
+      "cloudCover": 5.0,
+      "warning": null
+    }
+  },
+  "DAKSHIN-KANNAD": {
+    "03/18/2026": {
+      "rainfall": 8.0,
+      "tempMax": 34.0,
+      "tempMin": 24.0,
+      "humidityI": 82.0,
+      "humidityII": 72.0,
+      "windSpeed": 4.0,
+      "windDir": 360.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 7.0,
+      "tempMax": 34.0,
+      "tempMin": 23.0,
+      "humidityI": 83.0,
+      "humidityII": 73.0,
+      "windSpeed": 2.0,
+      "windDir": 360.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 8.0,
+      "tempMax": 33.0,
+      "tempMin": 24.0,
+      "humidityI": 84.0,
+      "humidityII": 74.0,
+      "windSpeed": 4.0,
+      "windDir": 360.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 5.0,
+      "tempMax": 34.0,
+      "tempMin": 24.0,
+      "humidityI": 85.0,
+      "humidityII": 73.0,
+      "windSpeed": 2.0,
+      "windDir": 81.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 5.0,
+      "tempMax": 34.0,
+      "tempMin": 24.0,
+      "humidityI": 84.0,
+      "humidityII": 72.0,
+      "windSpeed": 4.0,
+      "windDir": 84.0,
+      "cloudCover": 5.0,
+      "warning": null
+    }
+  },
+  "HASSAN": {
+    "03/18/2026": {
+      "rainfall": 12.0,
+      "tempMax": 34.0,
+      "tempMin": 13.0,
+      "humidityI": 65.0,
+      "humidityII": 36.0,
+      "windSpeed": 6.0,
+      "windDir": 275.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 10.0,
+      "tempMax": 34.0,
+      "tempMin": 14.0,
+      "humidityI": 66.0,
+      "humidityII": 38.0,
+      "windSpeed": 6.0,
+      "windDir": 219.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 10.0,
+      "tempMax": 33.0,
+      "tempMin": 13.0,
+      "humidityI": 67.0,
+      "humidityII": 37.0,
+      "windSpeed": 4.0,
+      "windDir": 263.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 8.0,
+      "tempMax": 34.0,
+      "tempMin": 14.0,
+      "humidityI": 65.0,
+      "humidityII": 39.0,
+      "windSpeed": 6.0,
+      "windDir": 249.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 8.0,
+      "tempMax": 34.0,
+      "tempMin": 14.0,
+      "humidityI": 66.0,
+      "humidityII": 38.0,
+      "windSpeed": 4.0,
+      "windDir": 315.0,
+      "cloudCover": 5.0,
+      "warning": null
+    }
+  },
+  "MANDYA": {
+    "03/18/2026": {
+      "rainfall": 4.0,
+      "tempMax": 35.0,
+      "tempMin": 17.0,
+      "humidityI": 84.0,
+      "humidityII": 45.0,
+      "windSpeed": 6.0,
+      "windDir": 252.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 4.0,
+      "tempMax": 35.0,
+      "tempMin": 18.0,
+      "humidityI": 84.0,
+      "humidityII": 46.0,
+      "windSpeed": 6.0,
+      "windDir": 160.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 5.0,
+      "tempMax": 34.0,
+      "tempMin": 17.0,
+      "humidityI": 81.0,
+      "humidityII": 45.0,
+      "windSpeed": 4.0,
+      "windDir": 254.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 5.0,
+      "tempMax": 35.0,
+      "tempMin": 18.0,
+      "humidityI": 79.0,
+      "humidityII": 46.0,
+      "windSpeed": 6.0,
+      "windDir": 236.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 5.0,
+      "tempMax": 35.0,
+      "tempMin": 17.0,
+      "humidityI": 78.0,
+      "humidityII": 47.0,
+      "windSpeed": 4.0,
+      "windDir": 315.0,
+      "cloudCover": 6.0,
+      "warning": null
+    }
+  },
+  "BANGALURU-URBAN": {
+    "03/18/2026": {
+      "rainfall": 0.0,
+      "tempMax": 33.0,
+      "tempMin": 21.0,
+      "humidityI": 78.0,
+      "humidityII": 44.0,
+      "windSpeed": 4.0,
+      "windDir": 139.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 2.0,
+      "tempMax": 32.0,
+      "tempMin": 21.0,
+      "humidityI": 80.0,
+      "humidityII": 42.0,
+      "windSpeed": 6.0,
+      "windDir": 146.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 3.0,
+      "tempMax": 33.0,
+      "tempMin": 20.0,
+      "humidityI": 79.0,
+      "humidityII": 43.0,
+      "windSpeed": 4.0,
+      "windDir": 162.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 3.0,
+      "tempMax": 32.0,
+      "tempMin": 21.0,
+      "humidityI": 78.0,
+      "humidityII": 42.0,
+      "windSpeed": 6.0,
+      "windDir": 227.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 2.0,
+      "tempMax": 33.0,
+      "tempMin": 21.0,
+      "humidityI": 75.0,
+      "humidityII": 40.0,
+      "windSpeed": 4.0,
+      "windDir": 187.0,
+      "cloudCover": 4.0,
+      "warning": null
+    }
+  },
+  "TUMKURU": {
+    "03/18/2026": {
+      "rainfall": 5.0,
+      "tempMax": 33.0,
+      "tempMin": 21.0,
+      "humidityI": 78.0,
+      "humidityII": 44.0,
+      "windSpeed": 4.0,
+      "windDir": 233.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 4.0,
+      "tempMax": 32.0,
+      "tempMin": 21.0,
+      "humidityI": 80.0,
+      "humidityII": 42.0,
+      "windSpeed": 6.0,
+      "windDir": 159.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 0.0,
+      "tempMax": 33.0,
+      "tempMin": 20.0,
+      "humidityI": 79.0,
+      "humidityII": 43.0,
+      "windSpeed": 4.0,
+      "windDir": 90.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 0.0,
+      "tempMax": 32.0,
+      "tempMin": 21.0,
+      "humidityI": 78.0,
+      "humidityII": 42.0,
+      "windSpeed": 4.0,
+      "windDir": 247.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 0.0,
+      "tempMax": 33.0,
+      "tempMin": 21.0,
+      "humidityI": 75.0,
+      "humidityII": 40.0,
+      "windSpeed": 4.0,
+      "windDir": 285.0,
+      "cloudCover": 3.0,
+      "warning": null
+    }
+  },
+  "CHIKMAGALURU": {
+    "03/18/2026": {
+      "rainfall": 2.0,
+      "tempMax": 34.0,
+      "tempMin": 13.0,
+      "humidityI": 65.0,
+      "humidityII": 36.0,
+      "windSpeed": 4.0,
+      "windDir": 360.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 3.0,
+      "tempMax": 34.0,
+      "tempMin": 14.0,
+      "humidityI": 66.0,
+      "humidityII": 38.0,
+      "windSpeed": 6.0,
+      "windDir": 90.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 3.0,
+      "tempMax": 33.0,
+      "tempMin": 13.0,
+      "humidityI": 67.0,
+      "humidityII": 37.0,
+      "windSpeed": 4.0,
+      "windDir": 239.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 5.0,
+      "tempMax": 34.0,
+      "tempMin": 14.0,
+      "humidityI": 65.0,
+      "humidityII": 39.0,
+      "windSpeed": 6.0,
+      "windDir": 264.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 5.0,
+      "tempMax": 34.0,
+      "tempMin": 14.0,
+      "humidityI": 66.0,
+      "humidityII": 38.0,
+      "windSpeed": 4.0,
+      "windDir": 315.0,
+      "cloudCover": 6.0,
+      "warning": null
+    }
+  },
+  "UDUPI": {
+    "03/18/2026": {
+      "rainfall": 2.0,
+      "tempMax": 34.0,
+      "tempMin": 24.0,
+      "humidityI": 82.0,
+      "humidityII": 72.0,
+      "windSpeed": 4.0,
+      "windDir": 75.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 3.0,
+      "tempMax": 34.0,
+      "tempMin": 23.0,
+      "humidityI": 83.0,
+      "humidityII": 73.0,
+      "windSpeed": 2.0,
+      "windDir": 81.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 4.0,
+      "tempMax": 33.0,
+      "tempMin": 24.0,
+      "humidityI": 84.0,
+      "humidityII": 74.0,
+      "windSpeed": 4.0,
+      "windDir": 360.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 3.0,
+      "tempMax": 34.0,
+      "tempMin": 24.0,
+      "humidityI": 85.0,
+      "humidityII": 73.0,
+      "windSpeed": 2.0,
+      "windDir": 75.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 3.0,
+      "tempMax": 34.0,
+      "tempMin": 24.0,
+      "humidityI": 84.0,
+      "humidityII": 72.0,
+      "windSpeed": 4.0,
+      "windDir": 67.0,
+      "cloudCover": 4.0,
+      "warning": null
+    }
+  },
+  "SHIVAMOGGA": {
+    "03/18/2026": {
+      "rainfall": 2.0,
+      "tempMax": 34.0,
+      "tempMin": 13.0,
+      "humidityI": 65.0,
+      "humidityII": 36.0,
+      "windSpeed": 4.0,
+      "windDir": 187.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 2.0,
+      "tempMax": 34.0,
+      "tempMin": 14.0,
+      "humidityI": 66.0,
+      "humidityII": 38.0,
+      "windSpeed": 6.0,
+      "windDir": 360.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 4.0,
+      "tempMax": 33.0,
+      "tempMin": 13.0,
+      "humidityI": 67.0,
+      "humidityII": 37.0,
+      "windSpeed": 4.0,
+      "windDir": 194.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 5.0,
+      "tempMax": 34.0,
+      "tempMin": 14.0,
+      "humidityI": 65.0,
+      "humidityII": 39.0,
+      "windSpeed": 6.0,
+      "windDir": 243.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 4.0,
+      "tempMax": 34.0,
+      "tempMin": 14.0,
+      "humidityI": 66.0,
+      "humidityII": 38.0,
+      "windSpeed": 4.0,
+      "windDir": 360.0,
+      "cloudCover": 5.0,
+      "warning": null
+    }
+  },
+  "DAVANGERE": {
+    "03/18/2026": {
+      "rainfall": 12.0,
+      "tempMax": 35.0,
+      "tempMin": 19.0,
+      "humidityI": 82.0,
+      "humidityII": 44.0,
+      "windSpeed": 8.0,
+      "windDir": 230.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 10.0,
+      "tempMax": 35.0,
+      "tempMin": 18.0,
+      "humidityI": 83.0,
+      "humidityII": 43.0,
+      "windSpeed": 6.0,
+      "windDir": 360.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 0.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 84.0,
+      "humidityII": 45.0,
+      "windSpeed": 4.0,
+      "windDir": 243.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 0.0,
+      "tempMax": 35.0,
+      "tempMin": 19.0,
+      "humidityI": 82.0,
+      "humidityII": 46.0,
+      "windSpeed": 4.0,
+      "windDir": 261.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 0.0,
+      "tempMax": 35.0,
+      "tempMin": 19.0,
+      "humidityI": 83.0,
+      "humidityII": 45.0,
+      "windSpeed": 4.0,
+      "windDir": 265.0,
+      "cloudCover": 3.0,
+      "warning": null
+    }
+  },
+  "CHITRADURGA": {
+    "03/18/2026": {
+      "rainfall": 6.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 80.0,
+      "humidityII": 45.0,
+      "windSpeed": 6.0,
+      "windDir": 360.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 0.0,
+      "tempMax": 33.0,
+      "tempMin": 19.0,
+      "humidityI": 82.0,
+      "humidityII": 44.0,
+      "windSpeed": 4.0,
+      "windDir": 243.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 0.0,
+      "tempMax": 34.0,
+      "tempMin": 18.0,
+      "humidityI": 78.0,
+      "humidityII": 45.0,
+      "windSpeed": 4.0,
+      "windDir": 354.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 0.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 78.0,
+      "humidityII": 46.0,
+      "windSpeed": 4.0,
+      "windDir": 284.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 0.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 77.0,
+      "humidityII": 45.0,
+      "windSpeed": 6.0,
+      "windDir": 277.0,
+      "cloudCover": 3.0,
+      "warning": null
+    }
+  },
+  "BALLARY": {
+    "03/18/2026": {
+      "rainfall": 0.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 80.0,
+      "humidityII": 45.0,
+      "windSpeed": 4.0,
+      "windDir": 238.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 0.0,
+      "tempMax": 33.0,
+      "tempMin": 19.0,
+      "humidityI": 82.0,
+      "humidityII": 44.0,
+      "windSpeed": 4.0,
+      "windDir": 203.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 0.0,
+      "tempMax": 34.0,
+      "tempMin": 18.0,
+      "humidityI": 78.0,
+      "humidityII": 45.0,
+      "windSpeed": 4.0,
+      "windDir": 69.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 0.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 78.0,
+      "humidityII": 46.0,
+      "windSpeed": 4.0,
+      "windDir": 258.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 0.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 77.0,
+      "humidityII": 45.0,
+      "windSpeed": 4.0,
+      "windDir": 297.0,
+      "cloudCover": 4.0,
+      "warning": null
+    }
+  },
+  "HAVERI": {
+    "03/18/2026": {
+      "rainfall": 1.0,
+      "tempMax": 36.0,
+      "tempMin": 19.0,
+      "humidityI": 83.0,
+      "humidityII": 26.0,
+      "windSpeed": 4.0,
+      "windDir": 246.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 0.0,
+      "tempMax": 36.0,
+      "tempMin": 19.0,
+      "humidityI": 82.0,
+      "humidityII": 26.0,
+      "windSpeed": 4.0,
+      "windDir": 256.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 1.0,
+      "tempMax": 35.0,
+      "tempMin": 18.0,
+      "humidityI": 84.0,
+      "humidityII": 26.0,
+      "windSpeed": 4.0,
+      "windDir": 360.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 2.0,
+      "tempMax": 36.0,
+      "tempMin": 19.0,
+      "humidityI": 85.0,
+      "humidityII": 25.0,
+      "windSpeed": 4.0,
+      "windDir": 259.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 1.0,
+      "tempMax": 36.0,
+      "tempMin": 19.0,
+      "humidityI": 88.0,
+      "humidityII": 23.0,
+      "windSpeed": 6.0,
+      "windDir": 288.0,
+      "cloudCover": 4.0,
+      "warning": null
+    }
+  },
+  "UTTAR-KANNAD": {
+    "03/18/2026": {
+      "rainfall": 2.0,
+      "tempMax": 35.0,
+      "tempMin": 24.0,
+      "humidityI": 85.0,
+      "humidityII": 62.0,
+      "windSpeed": 2.0,
+      "windDir": 117.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 0.0,
+      "tempMax": 35.0,
+      "tempMin": 24.0,
+      "humidityI": 86.0,
+      "humidityII": 63.0,
+      "windSpeed": 4.0,
+      "windDir": 81.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 3.0,
+      "tempMax": 34.0,
+      "tempMin": 23.0,
+      "humidityI": 84.0,
+      "humidityII": 64.0,
+      "windSpeed": 2.0,
+      "windDir": 360.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 4.0,
+      "tempMax": 35.0,
+      "tempMin": 24.0,
+      "humidityI": 85.0,
+      "humidityII": 63.0,
+      "windSpeed": 4.0,
+      "windDir": 360.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 0.0,
+      "tempMax": 35.0,
+      "tempMin": 24.0,
+      "humidityI": 84.0,
+      "humidityII": 62.0,
+      "windSpeed": 2.0,
+      "windDir": 14.0,
+      "cloudCover": 3.0,
+      "warning": null
+    }
+  },
+  "DHARWAD": {
+    "03/18/2026": {
+      "rainfall": 1.0,
+      "tempMax": 35.0,
+      "tempMin": 20.0,
+      "humidityI": 82.0,
+      "humidityII": 35.0,
+      "windSpeed": 4.0,
+      "windDir": 256.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 2.0,
+      "tempMax": 35.0,
+      "tempMin": 20.0,
+      "humidityI": 84.0,
+      "humidityII": 34.0,
+      "windSpeed": 6.0,
+      "windDir": 250.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 2.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 85.0,
+      "humidityII": 35.0,
+      "windSpeed": 4.0,
+      "windDir": 53.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 3.0,
+      "tempMax": 35.0,
+      "tempMin": 20.0,
+      "humidityI": 84.0,
+      "humidityII": 34.0,
+      "windSpeed": 6.0,
+      "windDir": 268.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 2.0,
+      "tempMax": 35.0,
+      "tempMin": 20.0,
+      "humidityI": 83.0,
+      "humidityII": 33.0,
+      "windSpeed": 4.0,
+      "windDir": 304.0,
+      "cloudCover": 5.0,
+      "warning": null
+    }
+  },
+  "GADAG": {
+    "03/18/2026": {
+      "rainfall": 0.0,
+      "tempMax": 35.0,
+      "tempMin": 21.0,
+      "humidityI": 65.0,
+      "humidityII": 35.0,
+      "windSpeed": 6.0,
+      "windDir": 274.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 0.0,
+      "tempMax": 35.0,
+      "tempMin": 21.0,
+      "humidityI": 66.0,
+      "humidityII": 34.0,
+      "windSpeed": 4.0,
+      "windDir": 360.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 1.0,
+      "tempMax": 34.0,
+      "tempMin": 20.0,
+      "humidityI": 64.0,
+      "humidityII": 33.0,
+      "windSpeed": 6.0,
+      "windDir": 66.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 0.0,
+      "tempMax": 35.0,
+      "tempMin": 21.0,
+      "humidityI": 67.0,
+      "humidityII": 34.0,
+      "windSpeed": 6.0,
+      "windDir": 267.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 2.0,
+      "tempMax": 35.0,
+      "tempMin": 21.0,
+      "humidityI": 65.0,
+      "humidityII": 35.0,
+      "windSpeed": 6.0,
+      "windDir": 302.0,
+      "cloudCover": 4.0,
+      "warning": null
+    }
+  },
+  "KOPPAL": {
+    "03/18/2026": {
+      "rainfall": 0.0,
+      "tempMax": 35.0,
+      "tempMin": 21.0,
+      "humidityI": 62.0,
+      "humidityII": 33.0,
+      "windSpeed": 4.0,
+      "windDir": 256.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 0.0,
+      "tempMax": 35.0,
+      "tempMin": 21.0,
+      "humidityI": 63.0,
+      "humidityII": 34.0,
+      "windSpeed": 4.0,
+      "windDir": 90.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 0.0,
+      "tempMax": 34.0,
+      "tempMin": 20.0,
+      "humidityI": 64.0,
+      "humidityII": 35.0,
+      "windSpeed": 4.0,
+      "windDir": 74.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 0.0,
+      "tempMax": 35.0,
+      "tempMin": 21.0,
+      "humidityI": 62.0,
+      "humidityII": 34.0,
+      "windSpeed": 4.0,
+      "windDir": 258.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 0.0,
+      "tempMax": 35.0,
+      "tempMin": 21.0,
+      "humidityI": 63.0,
+      "humidityII": 33.0,
+      "windSpeed": 4.0,
+      "windDir": 304.0,
+      "cloudCover": 4.0,
+      "warning": null
+    }
+  },
+  "RAICHUR": {
+    "03/18/2026": {
+      "rainfall": 0.0,
+      "tempMax": 36.0,
+      "tempMin": 21.0,
+      "humidityI": 57.0,
+      "humidityII": 27.0,
+      "windSpeed": 4.0,
+      "windDir": 183.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 1.0,
+      "tempMax": 36.0,
+      "tempMin": 21.0,
+      "humidityI": 69.0,
+      "humidityII": 28.0,
+      "windSpeed": 6.0,
+      "windDir": 129.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 1.0,
+      "tempMax": 35.0,
+      "tempMin": 20.0,
+      "humidityI": 69.0,
+      "humidityII": 29.0,
+      "windSpeed": 6.0,
+      "windDir": 60.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 0.0,
+      "tempMax": 36.0,
+      "tempMin": 21.0,
+      "humidityI": 66.0,
+      "humidityII": 26.0,
+      "windSpeed": 4.0,
+      "windDir": 140.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 0.0,
+      "tempMax": 36.0,
+      "tempMin": 21.0,
+      "humidityI": 63.0,
+      "humidityII": 25.0,
+      "windSpeed": 4.0,
+      "windDir": 90.0,
+      "cloudCover": 3.0,
+      "warning": null
+    }
+  },
+  "BIDAR": {
+    "03/18/2026": {
+      "rainfall": 5.0,
+      "tempMax": 35.0,
+      "tempMin": 21.0,
+      "humidityI": 58.0,
+      "humidityII": 42.0,
+      "windSpeed": 6.0,
+      "windDir": 247.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 5.0,
+      "tempMax": 35.0,
+      "tempMin": 21.0,
+      "humidityI": 59.0,
+      "humidityII": 41.0,
+      "windSpeed": 6.0,
+      "windDir": 166.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 6.0,
+      "tempMax": 34.0,
+      "tempMin": 20.0,
+      "humidityI": 57.0,
+      "humidityII": 40.0,
+      "windSpeed": 8.0,
+      "windDir": 119.0,
+      "cloudCover": 6.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 5.0,
+      "tempMax": 35.0,
+      "tempMin": 21.0,
+      "humidityI": 58.0,
+      "humidityII": 39.0,
+      "windSpeed": 6.0,
+      "windDir": 18.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 0.0,
+      "tempMax": 35.0,
+      "tempMin": 21.0,
+      "humidityI": 58.0,
+      "humidityII": 38.0,
+      "windSpeed": 4.0,
+      "windDir": 95.0,
+      "cloudCover": 3.0,
+      "warning": null
+    }
+  },
+  "BIJAPUR": {
+    "03/18/2026": {
+      "rainfall": 1.0,
+      "tempMax": 36.0,
+      "tempMin": 21.0,
+      "humidityI": 70.0,
+      "humidityII": 24.0,
+      "windSpeed": 6.0,
+      "windDir": 301.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 0.0,
+      "tempMax": 36.0,
+      "tempMin": 21.0,
+      "humidityI": 71.0,
+      "humidityII": 23.0,
+      "windSpeed": 4.0,
+      "windDir": 197.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 0.0,
+      "tempMax": 35.0,
+      "tempMin": 20.0,
+      "humidityI": 42.0,
+      "humidityII": 25.0,
+      "windSpeed": 4.0,
+      "windDir": 80.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 1.0,
+      "tempMax": 36.0,
+      "tempMin": 21.0,
+      "humidityI": 71.0,
+      "humidityII": 25.0,
+      "windSpeed": 6.0,
+      "windDir": 9.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 0.0,
+      "tempMax": 36.0,
+      "tempMin": 21.0,
+      "humidityI": 72.0,
+      "humidityII": 23.0,
+      "windSpeed": 4.0,
+      "windDir": 308.0,
+      "cloudCover": 3.0,
+      "warning": null
+    }
+  },
+  "BAGALKOT": {
+    "03/18/2026": {
+      "rainfall": 2.0,
+      "tempMax": 36.0,
+      "tempMin": 21.0,
+      "humidityI": 70.0,
+      "humidityII": 24.0,
+      "windSpeed": 6.0,
+      "windDir": 284.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 0.0,
+      "tempMax": 36.0,
+      "tempMin": 21.0,
+      "humidityI": 71.0,
+      "humidityII": 23.0,
+      "windSpeed": 4.0,
+      "windDir": 195.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 0.0,
+      "tempMax": 35.0,
+      "tempMin": 20.0,
+      "humidityI": 42.0,
+      "humidityII": 25.0,
+      "windSpeed": 4.0,
+      "windDir": 74.0,
+      "cloudCover": 3.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 0.0,
+      "tempMax": 36.0,
+      "tempMin": 21.0,
+      "humidityI": 71.0,
+      "humidityII": 25.0,
+      "windSpeed": 4.0,
+      "windDir": 301.0,
+      "cloudCover": 2.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 0.0,
+      "tempMax": 36.0,
+      "tempMin": 21.0,
+      "humidityI": 72.0,
+      "humidityII": 23.0,
+      "windSpeed": 4.0,
+      "windDir": 279.0,
+      "cloudCover": 3.0,
+      "warning": null
+    }
+  },
+  "BELAGAVI": {
+    "03/18/2026": {
+      "rainfall": 1.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 74.0,
+      "humidityII": 53.0,
+      "windSpeed": 6.0,
+      "windDir": 295.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/19/2026": {
+      "rainfall": 2.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 75.0,
+      "humidityII": 55.0,
+      "windSpeed": 6.0,
+      "windDir": 219.0,
+      "cloudCover": 5.0,
+      "warning": null
+    },
+    "03/20/2026": {
+      "rainfall": 2.0,
+      "tempMax": 33.0,
+      "tempMin": 18.0,
+      "humidityI": 74.0,
+      "humidityII": 54.0,
+      "windSpeed": 4.0,
+      "windDir": 59.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/21/2026": {
+      "rainfall": 2.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 75.0,
+      "humidityII": 53.0,
+      "windSpeed": 6.0,
+      "windDir": 305.0,
+      "cloudCover": 4.0,
+      "warning": null
+    },
+    "03/22/2026": {
+      "rainfall": 0.0,
+      "tempMax": 34.0,
+      "tempMin": 19.0,
+      "humidityI": 75.0,
+      "humidityII": 54.0,
+      "windSpeed": 6.0,
+      "windDir": 299.0,
+      "cloudCover": 3.0,
+      "warning": null
+    }
+  }
+};
+const DISTRICT_COORDS = {
+  "BAGALKOT": [16.18, 75.70], "BALLARY": [15.14, 76.92],
+  "BANGALURU-RURAL": [13.22, 77.57], "BANGALURU-URBAN": [12.97, 77.59],
+  "BELAGAVI": [15.85, 74.50], "BIDAR": [17.91, 77.52],
+  "BIJAPUR": [16.83, 75.72], "CHAMARAJANAGAR": [11.92, 76.94],
+  "CHIKBALLAPUR": [13.43, 77.73], "CHIKMAGALURU": [13.32, 75.78],
+  "CHITRADURGA": [14.23, 76.40], "DAKSHIN-KANNAD": [12.83, 75.13],
+  "DAVANGERE": [14.47, 75.92], "DHARWAD": [15.46, 75.01],
+  "GADAG": [15.43, 75.63], "Gulbarga": [17.33, 76.82],
+  "HASSAN": [13.00, 76.10], "HAVERI": [14.79, 75.40],
+  "KODAGU": [12.33, 75.83], "KOLAR": [13.14, 78.13],
+  "KOPPAL": [15.35, 76.15], "MANDYA": [12.52, 76.90],
+  "MYSURU": [12.30, 76.65], "RAICHUR": [16.21, 77.36],
+  "RAMANAGARA": [12.72, 77.28], "SHIVAMOGGA": [13.93, 75.57],
+  "TUMKURU": [13.34, 77.10], "UDUPI": [13.34, 74.75],
+  "UTTAR-KANNAD": [14.79, 74.68], "YADGIR": [16.77, 77.14]
+};
+
+// Agro-Met special stations (GKMS / AMFU)
+const AGRO_STATIONS = {
+  "GKMS-SHIVAMOGGA": {
+    coords: [13.88, 75.62],
+    label: "GKMS",
+    fullName: "GKMS Shivamogga",
+    type: "Gramin Krishi Mausam Seva",
+    parentDistrict: "SHIVAMOGGA"
+  },
+  "AMFU-HIRIYUR": {
+    coords: [14.18, 76.62],
+    label: "AMFU",
+    fullName: "AMFU Hiriyur",
+    type: "AgroMet Field Unit",
+    parentDistrict: "CHITRADURGA"
+  },
+  "AMFU-NAVILE": {
+    coords: [13.96, 75.55],
+    label: "AMFU",
+    fullName: "AMFU Navile",
+    type: "AgroMet Field Unit",
+    parentDistrict: "SHIVAMOGGA"
+  },
+  "AMFU-BRAHAMAVAR": {
+    coords: [13.41, 74.76],
+    label: "AMFU",
+    fullName: "AMFU Brahamavar",
+    type: "AgroMet Field Unit",
+    parentDistrict: "UDUPI"
+  }
+};
+
+const PARAMETERS = [
+  { key: 'tempMax', label: 'Temp Max', icon: '🌡️', unit: '°C', desc: 'Max Temperature', colorScale: 'heat' },
+  { key: 'tempMin', label: 'Temp Min', icon: '❄️', unit: '°C', desc: 'Min Temperature', colorScale: 'cool' },
+  { key: 'rainfall', label: 'Rainfall', icon: '🌧️', unit: 'mm', desc: 'Rainfall', colorScale: 'rain' },
+  { key: 'humidityI', label: 'Humidity I', icon: '💧', unit: '%', desc: 'Morning Humidity', colorScale: 'blue' },
+  { key: 'humidityII', label: 'Humidity II', icon: '🫧', unit: '%', desc: 'Evening Humidity', colorScale: 'blue' },
+  { key: 'windSpeed', label: 'Wind Spd', icon: '💨', unit: 'kmph', desc: 'Wind Speed', colorScale: 'wind' },
+  { key: 'cloudCover', label: 'Cloud Cover', icon: '☁️', unit: 'octa', desc: 'Cloud Cover', colorScale: 'gray' },
+  { key: 'windDir', label: 'Wind Dir', icon: '🧭', unit: '°', desc: 'Wind Direction', colorScale: 'dir' }
+];
+
+const DATES = ["03/18/2026", "03/19/2026", "03/20/2026", "03/21/2026", "03/22/2026"];
+const DAY_NAMES = ["WED", "THU", "FRI", "SAT", "SUN"];
+const FORECAST_LABELS = ["18 MAR", "19 MAR", "20 MAR", "21 MAR", "22 MAR"];
+
+// ============ COLOR SCALES ============
+function interpolateColor(t, scale) {
+  const scales = {
+    heat:  [[13,71,161],[21,101,192],[30,136,229],[100,181,246],[255,245,157],[255,183,77],[239,108,0],[198,40,40]],
+    cool:  [[0,60,110],[0,90,160],[30,136,229],[100,200,255],[200,240,255],[240,250,255]],
+    rain:  [[240,248,255],[176,224,240],[100,180,240],[30,100,210],[0,50,160],[10,10,80]],
+    blue:  [[240,250,255],[180,220,255],[80,160,240],[20,80,200],[0,30,120]],
+    wind:  [[240,255,240],[180,230,180],[100,200,100],[40,140,40],[10,80,10]],
+    gray:  [[200,220,240],[150,170,200],[100,120,160],[60,80,120],[20,30,60]],
+    dir:   [[255,80,80],[255,160,0],[80,220,80],[0,180,220],[80,80,255],[180,0,220],[255,80,80]]
+  };
+  const c = scales[scale] || scales.heat;
+  const idx = Math.min(t * (c.length - 1), c.length - 1.001);
+  const i = Math.floor(idx);
+  const f = idx - i;
+  const a = c[i], b = c[Math.min(i+1, c.length-1)];
+  return [a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f, a[2]+(b[2]-a[2])*f];
+}
+
+function valToColor(val, min, max, scale) {
+  if (max === min) return 'rgba(100,150,200,0.8)';
+  const t = Math.max(0, Math.min(1, (val - min) / (max - min)));
+  const [r,g,b] = interpolateColor(t, scale);
+  return `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},0.85)`;
+}
+
+function gradientCSS(scale) {
+  const steps = 10;
+  const colors = [];
+  for (let i = 0; i <= steps; i++) {
+    const [r,g,b] = interpolateColor(i/steps, scale);
+    colors.push(`rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`);
+  }
+  return `linear-gradient(to right, ${colors.join(',')})`;
+}
+
+// ============ STATE ============
+let currentDate = DATES[0];
+let currentParam = PARAMETERS[0];
+let selectedDistrict = null;
+let markers = {};
+let agroMarkers = {};
+
+// ============ MAP INIT ============
+const map = window._leafletMap = L.map('map', {
+  center: [14.5, 75.9],
+  zoom: 7,
+  zoomControl: true,
+  attributionControl: false
+});
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  maxZoom: 12, minZoom: 6
+}).addTo(map);
+
+// ============ KARNATAKA BOUNDARIES ============
+(function() {
+  map.createPane('stateBnd');  map.createPane('distBnd');
+  map.getPane('stateBnd').style.zIndex = 350;
+  map.getPane('distBnd').style.zIndex  = 340;
+  map.getPane('stateBnd').style.pointerEvents = 'none';
+  map.getPane('distBnd').style.pointerEvents  = 'none';
+
+  // ── State outline: bold yellow ──
+  fetch('https://raw.githubusercontent.com/datameet/maps/master/States/Karnataka.geojson')
+    .then(r => r.json()).then(d => {
+      L.geoJSON(d, { pane:'stateBnd', style:{ color:'#ffd60a', weight:14, opacity:0.12, fill:false }}).addTo(map);
+      L.geoJSON(d, { pane:'stateBnd', style:{ color:'#ffd60a', weight:3.5, opacity:1,   fill:false, lineCap:'round', lineJoin:'round' }}).addTo(map);
+    }).catch(()=>{});
+
+  // ── District outlines: green ──
+  fetch('https://raw.githubusercontent.com/datameet/maps/master/Districts/Karnataka.geojson')
+    .then(r => r.json()).then(d => {
+      L.geoJSON(d, { pane:'distBnd', style:{ color:'#00ff9f', weight:1.4, opacity:0.8, fill:false, lineCap:'round', lineJoin:'round' }}).addTo(map);
+    }).catch(()=>{});
+})();
+
+// ============ BUILD UI ============
+function buildDateTabs() {
+  const container = document.getElementById('dateTabs');
+  container.innerHTML = '';
+  DATES.forEach((date, i) => {
+    const tab = document.createElement('div');
+    tab.className = 'date-tab' + (date === currentDate ? ' active' : '');
+    tab.innerHTML = `<div>
+      <div>${DAY_NAMES[i]}</div>
+      <div class="day-label">${FORECAST_LABELS[i]}</div>
+    </div><span style="font-size:9px;opacity:0.5">▶</span>`;
+    tab.onclick = () => { currentDate = date; buildDateTabs(); renderMap(); renderAgroStations(); updateStatsSummary(); updateDistrictList(); if (selectedDistrict) { showDistrictDetail(selectedDistrict); updateSummaryPanel(selectedDistrict); } };
+    container.appendChild(tab);
+  });
+}
+
+function buildParamGrid() {
+  const container = document.getElementById('paramGrid');
+  container.innerHTML = '';
+  PARAMETERS.forEach(p => {
+    const btn = document.createElement('div');
+    btn.className = 'param-btn' + (p.key === currentParam.key ? ' active' : '');
+    btn.innerHTML = `<span class="param-icon">${p.icon}</span><span>${p.label}</span>`;
+    btn.onclick = () => { currentParam = p; buildParamGrid(); updateLegend(); renderMap(); renderAgroStations(); updateStatsSummary(); updateDistrictList(); if (selectedDistrict) { showDistrictDetail(selectedDistrict); updateSummaryPanel(selectedDistrict); } };
+    container.appendChild(btn);
+  });
+}
+
+function getValues() {
+  const vals = {};
+  Object.keys(WEATHER_DATA).forEach(dist => {
+    const d = WEATHER_DATA[dist][currentDate];
+    if (d) vals[dist] = d[currentParam.key];
+  });
+  return vals;
+}
+
+function getMinMax(vals) {
+  const v = Object.values(vals);
+  return { min: Math.min(...v), max: Math.max(...v) };
+}
+
+function updateLegend() {
+  const vals = getValues();
+  const { min, max } = getMinMax(vals);
+  document.getElementById('legendBar').style.background = gradientCSS(currentParam.colorScale);
+  document.getElementById('legendMin').textContent = min.toFixed(1);
+  document.getElementById('legendMid').textContent = ((min+max)/2).toFixed(1);
+  document.getElementById('legendMax').textContent = max.toFixed(1);
+  document.getElementById('legendUnit').textContent = `Unit: ${currentParam.unit} · ${currentParam.desc}`;
+}
+
+// ============ RENDER MAP ============
+function dirToArrow(deg) {
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(deg / 22.5) % 16];
+}
+
+function cloudLabel(octa) {
+  const labels = ['SKC','FEW','FEW','SCT','SCT','BKN','BKN','OVC','OVC'];
+  return labels[Math.min(Math.round(octa), 8)] || '—';
+}
+
+function renderMap() {
+  const vals = getValues();
+  const { min, max } = getMinMax(vals);
+
+  Object.keys(DISTRICT_COORDS).forEach(dist => {
+    if (!WEATHER_DATA[dist] || !WEATHER_DATA[dist][currentDate]) return;
+    const coords = DISTRICT_COORDS[dist];
+    const val = vals[dist];
+    const color = valToColor(val, min, max, currentParam.colorScale);
+    const data = WEATHER_DATA[dist][currentDate];
+    const isSelected = dist === selectedDistrict;
+
+    const html = `
+      <div style="
+        width:${isSelected ? 52 : 42}px;
+        height:${isSelected ? 52 : 42}px;
+        border-radius:50%;
+        background:${color};
+        border:${isSelected ? '3px solid #00d4ff' : '1.5px solid rgba(255,255,255,0.25)'};
+        box-shadow:${isSelected ? '0 0 20px rgba(0,212,255,0.6),0 0 40px rgba(0,212,255,0.3)' : '0 2px 8px rgba(0,0,0,0.5)'};
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        cursor:pointer;
+        transition: all 0.2s;
+        position:relative;
+      ">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:${val >= 100 ? '9' : '11'}px;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.8);line-height:1.1;">${val.toFixed(val%1===0?0:1)}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:7px;color:rgba(255,255,255,0.8);">${currentParam.unit}</div>
+        ${data.warning ? '<div style="position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:#ffb020;border:1px solid rgba(0,0,0,0.5);"></div>' : ''}
+      </div>`;
+
+    const icon = L.divIcon({ html, className: '', iconSize: [isSelected?52:42, isSelected?52:42], iconAnchor: [isSelected?26:21, isSelected?26:21] });
+
+    const tooltipContent = `
+      <div style="font-family:'IBM Plex Mono',monospace;">
+        <div style="color:#00d4ff;font-weight:600;font-size:12px;margin-bottom:6px;letter-spacing:1px;">${dist}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;font-size:10px;">
+          <span style="color:#4a6080">Rain</span><span style="color:#fff">${data.rainfall} mm</span>
+          <span style="color:#4a6080">T.Max</span><span style="color:#ff8060">${data.tempMax}°C</span>
+          <span style="color:#4a6080">T.Min</span><span style="color:#60c0ff">${data.tempMin}°C</span>
+          <span style="color:#4a6080">Hum I</span><span style="color:#fff">${data.humidityI}%</span>
+          <span style="color:#4a6080">Hum II</span><span style="color:#fff">${data.humidityII}%</span>
+          <span style="color:#4a6080">Wind</span><span style="color:#80ff80">${data.windSpeed} kmph ${dirToArrow(data.windDir)}</span>
+          <span style="color:#4a6080">Cloud</span><span style="color:#fff">${data.cloudCover} octa (${cloudLabel(data.cloudCover)})</span>
+          ${data.warning ? `<span style="color:#ffb020">⚠ Warn</span><span style="color:#ffb020">${data.warning}</span>` : ''}
+        </div>
+      </div>`;
+
+    if (markers[dist]) {
+      markers[dist].setIcon(icon);
+      markers[dist].setTooltipContent(tooltipContent);
+    } else {
+      const marker = L.marker(coords, { icon, zIndexOffset: isSelected ? 1000 : 0 })
+        .addTo(map)
+        .bindTooltip(tooltipContent, { className: 'leaflet-tooltip-custom', offset: [26,0], direction: 'right', sticky: false })
+        .on('click', () => {
+          selectedDistrict = dist;
+          renderMap();
+          renderAgroStations();
+          showDistrictDetail(dist);
+          updateSummaryPanel(dist);
+          updateDistrictList();
+        });
+      markers[dist] = marker;
+    }
+    markers[dist].options.zIndexOffset = isSelected ? 1000 : 0;
+  });
+
+  updateLegend();
+}
+
+// ============ AGRO-MET STATIONS ============
+function renderAgroStations() {
+  Object.entries(AGRO_STATIONS).forEach(([id, station]) => {
+    const isSelected = selectedDistrict === id;
+    const parentData = WEATHER_DATA[station.parentDistrict]?.[currentDate];
+    const bg = isSelected ? '#0a2a18' : '#071a10';
+    const border = isSelected ? '#39ff6e' : 'rgba(57,255,110,0.4)';
+    const shadow = isSelected ? '0 0 18px rgba(57,255,110,0.7)' : '0 0 8px rgba(57,255,110,0.3)';
+
+    const tooltipContent = parentData ? `
+      <div style="font-family:'IBM Plex Mono',monospace;">
+        <div style="color:#39ff6e;font-weight:600;font-size:12px;margin-bottom:3px;">${station.fullName}</div>
+        <div style="color:#4a6080;font-size:9px;margin-bottom:6px;">${station.type}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;font-size:10px;">
+          <span style="color:#4a6080">T.Max</span><span style="color:#ff8060">${parentData.tempMax}°C</span>
+          <span style="color:#4a6080">T.Min</span><span style="color:#60c0ff">${parentData.tempMin}°C</span>
+          <span style="color:#4a6080">Rain</span><span style="color:#80ccff">${parentData.rainfall} mm</span>
+          <span style="color:#4a6080">Wind</span><span style="color:#80ff80">${parentData.windSpeed} kmph</span>
+          <span style="color:#4a6080">Hum I</span><span style="color:#fff">${parentData.humidityI}%</span>
+          <span style="color:#4a6080">District</span><span style="color:#aaa">${station.parentDistrict}</span>
+        </div>
+      </div>` : `<div style="font-family:'IBM Plex Mono',monospace;color:#39ff6e;">${station.fullName}</div>`;
+
+    const html = `
+      <div style="display:flex;flex-direction:column;align-items:center;cursor:pointer;">
+        <div style="
+          width:${isSelected?44:36}px; height:${isSelected?44:36}px;
+          clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);
+          background:${bg};
+          border:2px solid ${border};
+          box-shadow:${shadow};
+          display:flex;align-items:center;justify-content:center;
+          outline:2px solid ${border};
+          outline-offset:2px;
+        ">
+          <span style="font-size:9px;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#39ff6e;letter-spacing:0.3px;">${station.label}</span>
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:6px;color:#39ff6e;margin-top:2px;letter-spacing:0.5px;text-shadow:0 0 6px rgba(57,255,110,0.6);white-space:nowrap;">
+          ${station.fullName}
+        </div>
+      </div>`;
+
+    const icon = L.divIcon({ html, className: '', iconSize: [80, 52], iconAnchor: [40, 26] });
+
+    if (agroMarkers[id]) {
+      agroMarkers[id].setIcon(icon);
+      agroMarkers[id].setTooltipContent(tooltipContent);
+    } else {
+      const marker = L.marker(station.coords, { icon, zIndexOffset: 500 })
+        .addTo(map)
+        .bindTooltip(tooltipContent, { className: 'leaflet-tooltip-custom', offset: [40, 0], direction: 'right' })
+        .on('click', () => {
+          selectedDistrict = id;
+          renderMap();
+          renderAgroStations();
+          showDistrictDetail(id);
+          updateSummaryPanel(id);
+          updateDistrictList();
+        });
+      agroMarkers[id] = marker;
+    }
+  });
+}
+
+// ============ STATS SUMMARY ============
+function updateStatsSummary() {
+  const vals = getValues();
+  const v = Object.values(vals);
+  const avg = v.reduce((a,b)=>a+b,0)/v.length;
+  const max = Math.max(...v);
+  const min = Math.min(...v);
+  const maxDist = Object.keys(vals).find(k=>vals[k]===max);
+  const minDist = Object.keys(vals).find(k=>vals[k]===min);
+
+  document.getElementById('statsSummary').innerHTML = `
+    <div class="stat-box">
+      <div class="stat-val" style="color:#ff6b2b">${max.toFixed(1)}</div>
+      <div class="stat-label">${currentParam.unit} MAX</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--muted);margin-top:2px;">${maxDist}</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-val" style="color:#00d4ff">${min.toFixed(1)}</div>
+      <div class="stat-label">${currentParam.unit} MIN</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--muted);margin-top:2px;">${minDist}</div>
+    </div>
+    <div class="stat-box" style="grid-column:span 2">
+      <div class="stat-val" style="font-size:14px;color:#39ff6e">${avg.toFixed(1)} ${currentParam.unit}</div>
+      <div class="stat-label">STATE AVG · ${currentParam.desc.toUpperCase()}</div>
+    </div>`;
+}
+
+// ============ DISTRICT LIST ============
+function updateDistrictList() {
+  const vals = getValues();
+  const sorted = Object.keys(vals).sort((a,b) => vals[b]-vals[a]);
+  const { min, max } = getMinMax(vals);
+  const container = document.getElementById('districtList');
+  container.innerHTML = '';
+  sorted.forEach(dist => {
+    const val = vals[dist];
+    const color = valToColor(val, min, max, currentParam.colorScale);
+    const item = document.createElement('div');
+    item.className = 'dist-list-item' + (dist === selectedDistrict ? ' selected' : '');
+    item.innerHTML = `<div class="dist-list-dot" style="background:${color};box-shadow:0 0 4px ${color}"></div>
+      <div class="dist-list-name">${dist}</div>
+      <div class="dist-list-val">${val.toFixed(val%1===0?0:1)} <span style="font-size:8px;opacity:0.7">${currentParam.unit}</span></div>`;
+    item.onclick = () => {
+      selectedDistrict = dist;
+      renderMap();
+      renderAgroStations();
+      showDistrictDetail(dist);
+      updateSummaryPanel(dist);
+      updateDistrictList();
+      if (DISTRICT_COORDS[dist]) map.panTo(DISTRICT_COORDS[dist]);
+    };
+    container.appendChild(item);
+  });
+
+  // Add AGRO stations at the bottom with distinct style
+  const agroDiv = document.createElement('div');
+  agroDiv.style.cssText = 'margin-top:6px;padding-top:6px;border-top:1px solid var(--border);';
+  agroDiv.innerHTML = `<div style="font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--muted);margin-bottom:4px;">AGRO-MET STATIONS</div>`;
+  Object.entries(AGRO_STATIONS).forEach(([id, station]) => {
+    const parentData = WEATHER_DATA[station.parentDistrict]?.[currentDate];
+    const item = document.createElement('div');
+    item.className = 'dist-list-item' + (id === selectedDistrict ? ' selected' : '');
+    item.style.cssText = 'border:1px solid rgba(57,255,110,0.2);border-radius:3px;margin-bottom:2px;';
+    item.innerHTML = `
+      <div class="dist-list-dot" style="background:#39ff6e;clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);border-radius:0;box-shadow:0 0 5px rgba(57,255,110,0.6)"></div>
+      <div class="dist-list-name" style="color:#39ff6e">${station.fullName}</div>
+      <div class="dist-list-val" style="color:#39ff6e;font-size:8px;">${parentData ? parentData.tempMax+'°C' : '—'}</div>`;
+    item.onclick = () => {
+      selectedDistrict = id;
+      renderMap(); renderAgroStations(); showDistrictDetail(id); updateSummaryPanel(id); updateDistrictList();
+      map.panTo(station.coords);
+    };
+    agroDiv.appendChild(item);
+  });
+  container.appendChild(agroDiv);
+}
+
+// ============ 5-DAY SUMMARY PANEL ============
+function updateSummaryPanel(id) {
+  const panel = document.getElementById('summaryPanel');
+  if (!id) {
+    panel.innerHTML = '<div class="summary-empty">Select a district to view 5-day summary</div>';
+    return;
+  }
+
+  const agroStation = AGRO_STATIONS[id];
+  const distKey = agroStation ? agroStation.parentDistrict : id;
+  const displayName = agroStation ? agroStation.fullName : id;
+
+  const allDates = DATES.map(d => ({ date: d, data: WEATHER_DATA[distKey]?.[d] })).filter(x => x.data);
+  if (!allDates.length) {
+    panel.innerHTML = '<div class="summary-empty">No data available</div>';
+    return;
+  }
+
+  const n = allDates.length;
+  const sum = key => allDates.reduce((a, x) => a + (x.data[key] || 0), 0);
+  const avg = key => sum(key) / n;
+
+  const rainfallTotal = sum('rainfall');
+  const rainfallAvg  = rainfallTotal / n;
+
+  const vars = [
+    { icon: '🌡️', key: 'tempMax',    label: 'Temp Max',   unit: '°C',   color: '#ff8060' },
+    { icon: '❄️', key: 'tempMin',    label: 'Temp Min',   unit: '°C',   color: '#80d0ff' },
+    { icon: '💧', key: 'humidityI',  label: 'Hum I (AM)', unit: '%',    color: '#60aaff' },
+    { icon: '🫧', key: 'humidityII', label: 'Hum II (PM)',unit: '%',    color: '#60aaff' },
+    { icon: '💨', key: 'windSpeed',  label: 'Wind Speed', unit: ' kmph',color: '#80ff80' },
+    { icon: '🧭', key: 'windDir',    label: 'Wind Dir',   unit: '°',    color: '#c8d8f0' },
+    { icon: '☁️', key: 'cloudCover', label: 'Cloud Cover',unit: ' octa',color: '#a0b8d0' },
+  ];
+
+  let rows = vars.map(v => {
+    const a = avg(v.key);
+    return `<div class="summary-row">
+      <span class="summary-icon">${v.icon}</span>
+      <span class="summary-key">${v.label}</span>
+      <span class="summary-val" style="color:${v.color}">${a.toFixed(1)}${v.unit}</span>
+      <span class="summary-sub">avg</span>
+    </div>`;
+  }).join('');
+
+  // Rainfall — both sum and avg
+  const rainRow = `<div class="summary-rain-block">
+    <div class="summary-rain-line">
+      <span class="summary-icon">🌧️</span>
+      <span class="summary-key">Rainfall</span>
+      <span class="summary-val" style="color:#60c0ff">${rainfallTotal.toFixed(1)} mm</span>
+      <span class="summary-sub">total</span>
+    </div>
+    <div class="summary-rain-sub">avg ${rainfallAvg.toFixed(1)} mm/day</div>
+  </div>`;
+
+  panel.innerHTML = `
+    <div class="summary-panel-header">📊 ${n}-Day Avg · All Variables</div>
+    <div class="summary-district-name">${displayName}</div>
+    ${rows}
+    ${rainRow}`;
+}
+
+// ============ DISTRICT DETAIL ============
+function showDistrictDetail(id) {
+  // Resolve whether this is an agro station or a regular district
+  const agroStation = AGRO_STATIONS[id];
+  const distKey = agroStation ? agroStation.parentDistrict : id;
+  const displayName = agroStation ? agroStation.fullName : id;
+  const isAgro = !!agroStation;
+
+  const allDates = DATES.map(d => ({ date: d, data: WEATHER_DATA[distKey]?.[d] })).filter(x => x.data);
+  if (!allDates.length) return;
+
+  const d = WEATHER_DATA[distKey][currentDate];
+  if (!d) return;
+
+  const windArrow = dirToArrow(d.windDir);
+
+  // ── Spark bars (existing) ──
+  let sparkHtml = '<div style="display:flex;gap:4px;margin-top:4px;">';
+  PARAMETERS.slice(0,2).forEach(p => {
+    const vals = allDates.map(x => x.data[p.key]);
+    const mn = Math.min(...vals), mx = Math.max(...vals);
+    sparkHtml += `<div style="flex:1;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:2px">${p.label}</div>
+      <div style="display:flex;align-items:flex-end;gap:2px;height:20px;">`;
+    allDates.forEach(x => {
+      const h = mx===mn ? 10 : 4 + (x.data[p.key]-mn)/(mx-mn)*16;
+      const isToday = x.date === currentDate;
+      sparkHtml += `<div style="flex:1;height:${h}px;border-radius:1px;background:${isToday?'#00d4ff':'#1a3a5e'};"></div>`;
+    });
+    sparkHtml += `</div></div>`;
+  });
+  sparkHtml += '</div>';
+
+  // ── Weekly forecast table ──
+  let weeklyRows = '';
+  allDates.forEach(x => {
+    const isActive = x.date === currentDate;
+    const dt = x.date; // MM/DD/YYYY
+    const parts = dt.split('/');
+    const dayLabel = new Date(+parts[2], +parts[0]-1, +parts[1]).toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+    const rainDot = x.data.rainfall > 0 ? `<span class="wk-rain-dot"></span>` : '';
+    weeklyRows += `<tr class="${isActive ? 'current-day' : ''}">
+      <td class="wk-day">${dayLabel}</td>
+      <td class="wk-tmax">${x.data.tempMax}°</td>
+      <td class="wk-tmin">${x.data.tempMin}°</td>
+      <td class="wk-rain">${rainDot}${x.data.rainfall > 0 ? x.data.rainfall+' mm' : '—'}</td>
+    </tr>`;
+  });
+
+  // ── Warning sector ──
+  const warningDays = allDates.filter(x => x.data.warning && x.data.warning.trim());
+  let warnBody = '';
+  if (warningDays.length === 0) {
+    warnBody = `<div class="warn-none">No active weather warnings</div>`;
+  } else {
+    warningDays.forEach(x => {
+      const parts = x.date.split('/');
+      const dayLabel = new Date(+parts[2], +parts[0]-1, +parts[1]).toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+      warnBody += `<div style="margin-bottom:4px;">
+        <span style="color:var(--warn);font-weight:600;">${dayLabel}:</span>
+        <span style="color:#ffd580;"> ${x.data.warning}</span>
+      </div>`;
+    });
+  }
+
+  const agroBadge = isAgro ? `
+    <div class="agro-badge">
+      ◆ ${agroStation.type}
+    </div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:6px;">
+      Data source: ${distKey} district
+    </div>` : '';
+
+  document.getElementById('districtDetail').innerHTML = `
+    <div class="district-card highlighted">
+      ${agroBadge}
+      <div class="district-card-name" style="${isAgro ? 'color:#39ff6e;' : ''}">
+        ${isAgro ? '◆' : '📍'} ${displayName}
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">DATE</span>
+        <span class="metric-val" style="color:#fff;font-size:10px">${currentDate} (${FORECAST_LABELS[DATES.indexOf(currentDate)]})</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">🌧 RAINFALL</span>
+        <span class="metric-val" style="color:#60c0ff">${d.rainfall} mm</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">🌡 TEMP MAX</span>
+        <span class="metric-val" style="color:#ff8060">${d.tempMax} °C</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">❄ TEMP MIN</span>
+        <span class="metric-val" style="color:#80d0ff">${d.tempMin} °C</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">💧 HUM I (AM)</span>
+        <span class="metric-val">${d.humidityI} %</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">💧 HUM II (PM)</span>
+        <span class="metric-val">${d.humidityII} %</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">💨 WIND</span>
+        <span class="metric-val" style="color:#80ff80">${d.windSpeed} kmph ${windArrow}</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">🧭 WIND DIR</span>
+        <span class="metric-val">${d.windDir}°</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">☁ CLOUD</span>
+        <span class="metric-val">${d.cloudCover} octa (${cloudLabel(d.cloudCover)})</span>
+      </div>
+
+      <!-- WARNING SECTOR -->
+      <div class="warn-sector" style="margin-top:10px;">
+        <div class="warn-sector-header">⚠ WARNING SECTOR</div>
+        <div class="warn-sector-body">${warnBody}</div>
+      </div>
+
+      <!-- WEEKLY FORECAST TABLE -->
+      <div class="weekly-forecast">
+        <div class="weekly-header">📅 WEEKLY FORECAST</div>
+        <table class="weekly-table">
+          <thead>
+            <tr>
+              <th style="text-align:left;">Day</th>
+              <th>T.Max</th>
+              <th>T.Min</th>
+              <th>Rain</th>
+            </tr>
+          </thead>
+          <tbody>${weeklyRows}</tbody>
+        </table>
+      </div>
+
+      <!-- 5-DAY SPARK TREND -->
+      <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:4px;letter-spacing:1px">5-DAY TREND ▸</div>
+        ${sparkHtml}
+      </div>
+    </div>`;
+}
+
+
+// ══════════════════════════════════════════════
+// UPLOAD AREA
+// ══════════════════════════════════════════════
+(function () {
+
+  /* ── helpers ── */
+  const $ = id => document.getElementById(id);
+  function fmtBytes(b) {
+    if (b < 1024)     return b + ' B';
+    if (b < 1048576)  return (b / 1024).toFixed(1) + ' KB';
+    return (b / 1048576).toFixed(1) + ' MB';
+  }
+
+  /* ── collapse / expand ── */
+  window.toggleUpload = function () {
+    const body     = $('uploadBody');
+    const chevron  = $('uploadChevron');
+    const isOpen   = body.style.display !== 'none';
+    body.style.display  = isOpen ? 'none' : 'flex';
+    chevron.classList.toggle('open', !isOpen);
+  };
+
+  /* ── drag-and-drop wiring ── */
+  const zone = $('dropZone');
+
+  zone.addEventListener('dragover', e => {
+    e.preventDefault();
+    zone.classList.add('drag-active');
+  });
+  zone.addEventListener('dragleave', e => {
+    if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-active');
+  });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-active');
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileSelect(file);
+  });
+
+  /* ── file selected via input or drop ── */
+  window.handleFileSelect = async function (file) {
+    if (!file) return;
+
+    // Validate extension
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['xlsx', 'xls', 'csv'].includes(ext)) {
+      setError('Unsupported format — use .xlsx, .xls, or .csv');
+      return;
+    }
+
+    resetState();
+    showProgress(true);
+    setStage('Reading file…', 15);
+
+    let wb;
+    try {
+      const buf = await readAsArrayBuffer(file);
+      setStage('Parsing workbook…', 40);
+      await tick();
+
+      wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      setStage('Extracting rows…', 70);
+      await tick();
+
+      const sheetName = wb.SheetNames[0];
+      const ws  = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      setStage('Updating map…', 90);
+      await tick();
+
+      ingestRows(rows, sheetName);
+
+      setStage('Complete', 100);
+      $('progressFill').classList.add('complete');
+      await delay(350);
+      showProgress(false);
+
+      // Success UI
+      zone.classList.add('success-state');
+      $('dzIcon').textContent  = '✅';
+      $('dzTitle').textContent = 'File loaded';
+      $('dzSub').textContent   = 'Drop another file to replace';
+      $('uploadDot').classList.add('ready');
+      setSuccess(`✓ ${rows.length} rows · ${Object.keys(rows[0]||{}).length} columns · sheet "${sheetName}"`);
+      showPill(file, rows.length, wb.SheetNames.length);
+
+    } catch (err) {
+      $('progressFill').classList.add('errored');
+      setStage('Failed', 100);
+      await delay(200);
+      showProgress(false);
+      setError('❌ ' + (err.message || 'Parse error'));
+      zone.classList.add('error-state');
+      $('dzIcon').textContent = '⚠️';
+      $('uploadDot').classList.add('error');
+    }
+  };
+
+  /* ── clear / reset ── */
+  window.clearUpload = function () {
+    resetState();
+    $('dzIcon').textContent  = '📂';
+    $('dzTitle').textContent = 'Drop file here';
+    $('dzSub').textContent   = 'or click to browse your computer';
+    $('fileInput').value     = '';
+  };
+
+  /* ── internal helpers ── */
+  function resetState() {
+    zone.classList.remove('drag-active', 'success-state', 'error-state');
+    $('uploadSuccess').style.display = 'none';
+    $('uploadError').style.display   = 'none';
+    $('filePill').style.display      = 'none';
+    $('uploadDot').classList.remove('ready', 'error');
+    $('progressFill').classList.remove('complete', 'errored');
+  }
+
+  function showProgress(visible) {
+    $('uploadProgress').style.display = visible ? 'flex' : 'none';
+    if (!visible) { $('progressFill').style.width = '0%'; }
+  }
+
+  function setStage(label, pct) {
+    $('progressStage').textContent   = label;
+    $('progressPct').textContent     = pct + '%';
+    $('progressFill').style.width    = pct + '%';
+  }
+
+  function setSuccess(msg) {
+    $('uploadSuccess').textContent    = msg;
+    $('uploadSuccess').style.display  = 'block';
+  }
+
+  function setError(msg) {
+    $('uploadError').textContent  = msg;
+    $('uploadError').style.display = 'block';
+    $('uploadDot').classList.add('error');
+  }
+
+  function showPill(file, rowCount, sheetCount) {
+    $('pillName').textContent = file.name;
+    $('pillMeta').textContent = fmtBytes(file.size) + ' · ' + rowCount + ' rows · ' + sheetCount + ' sheet(s)';
+    $('filePill').style.display = 'flex';
+  }
+
+  function readAsArrayBuffer(file) {
+    return new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload  = e => res(e.target.result);
+      reader.onerror = () => rej(new Error('FileReader failed'));
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function tick()        { return new Promise(r => requestAnimationFrame(r)); }
+  function delay(ms)     { return new Promise(r => setTimeout(r, ms)); }
+
+  /* ── ingest rows into existing dashboard ── */
+  function ingestRows(rows, sheetName) {
+    if (!rows.length) throw new Error('Sheet "' + sheetName + '" is empty.');
+
+    // Expected IMD column names (case-insensitive match)
+    const colMap = findColumns(Object.keys(rows[0]));
+
+    // Rebuild WEATHER_DATA from uploaded rows
+    const newData = {};
+    rows.forEach(row => {
+      const dist  = normalizeDistName(row[colMap.dist] || '');
+      const fdate = formatDate(row[colMap.date] || '');
+      if (!dist || !fdate) return;
+
+      if (!newData[dist]) newData[dist] = {};
+      newData[dist][fdate] = {
+        rainfall:   +row[colMap.rainfall]   || 0,
+        tempMax:    +row[colMap.tempMax]     || 0,
+        tempMin:    +row[colMap.tempMin]     || 0,
+        humidityI:  +row[colMap.humidityI]   || 0,
+        humidityII: +row[colMap.humidityII]  || 0,
+        windSpeed:  +row[colMap.windSpeed]   || 0,
+        windDir:    +row[colMap.windDir]     || 0,
+        cloudCover: +row[colMap.cloudCover]  || 0,
+        warning:    String(row[colMap.warning] || '')
+      };
+    });
+
+    if (!Object.keys(newData).length) throw new Error('No district/date rows could be matched.');
+
+    // Merge into global WEATHER_DATA
+    Object.assign(WEATHER_DATA, newData);
+
+    // Rebuild date tabs & re-render
+    const allDates = [...new Set(rows.map(r => formatDate(r[colMap.date]||'')).filter(Boolean))].sort();
+    if (allDates.length) {
+      DATES.length = 0;
+      DAY_NAMES.length = 0;
+      FORECAST_LABELS.length = 0;
+      allDates.forEach((d, i) => {
+        DATES.push(d);
+        DAY_NAMES.push(fmtDayLabel(d));
+        FORECAST_LABELS.push('+' + (i + 1) + ' Day' + (i ? 's' : ''));
+      });
+      currentDate = DATES[0];
+    }
+
+    buildDateTabs();
+    renderMap();
+    renderAgroStations();
+    updateStatsSummary();
+    updateDistrictList();
+  }
+
+  /* ── column discovery ── */
+  function findColumns(keys) {
+    function find(patterns) {
+      for (const p of patterns) {
+        const k = keys.find(k => k.toLowerCase().includes(p));
+        if (k) return k;
+      }
+      return keys[0]; // fallback
+    }
+    return {
+      dist:       find(['dist_name','district','dist']),
+      date:       find(['forecast_date','forecastdate','date']),
+      rainfall:   find(['rainfall']),
+      tempMax:    find(['tempmax','temp_max','tmax']),
+      tempMin:    find(['tempmin','temp_min','tmin']),
+      humidityI:  find(['humidityi(','humidityi','hum1','humidity1']),
+      humidityII: find(['humidityii(','humidityii','hum2','humidity2']),
+      windSpeed:  find(['windspeed','wind_speed','wspd']),
+      windDir:    find(['winddirection','wind_dir','wdir']),
+      cloudCover: find(['cloudcover','cloud_cover','cloud']),
+      warning:    find(['warning','warn'])
+    };
+  }
+
+  /* ── normalise district names ── */
+  const DIST_ALIASES = {
+    'GULBARGA':'Gulbarga','KALABURAGI':'Gulbarga',
+    'BANGALORE URBAN':'BANGALURU-URBAN','BANGALURU URBAN':'BANGALURU-URBAN',
+    'BANGALORE RURAL':'BANGALURU-RURAL','BANGALURU RURAL':'BANGALURU-RURAL',
+    'DAKSHINA KANNADA':'DAKSHIN-KANNAD','DAKSHIN KANNADA':'DAKSHIN-KANNAD',
+    'UTTARA KANNADA':'UTTAR-KANNAD','UTTAR KANNADA':'UTTAR-KANNAD',
+    'MYSORE':'MYSURU','BELLARY':'BALLARY','SHIMOGA':'SHIVAMOGGA',
+    'TUMKUR':'TUMKURU','VIJAYAPURA':'BIJAPUR'
+  };
+  function normalizeDistName(name) {
+    const up = String(name).toUpperCase().trim();
+    return DIST_ALIASES[up] || up || null;
+  }
+
+  /* ── date formatting ── */
+  function formatDate(raw) {
+    if (!raw) return '';
+    if (raw instanceof Date) {
+      const m = String(raw.getMonth()+1).padStart(2,'0');
+      const d = String(raw.getDate()).padStart(2,'0');
+      const y = raw.getFullYear();
+      return m + '/' + d + '/' + y;
+    }
+    // Try to match MM/DD/YYYY or YYYY-MM-DD
+    const s = String(raw).trim();
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return iso[2] + '/' + iso[3] + '/' + iso[1];
+    return s;
+  }
+
+  function fmtDayLabel(d) {
+    try {
+      const [m, day, y] = d.split('/').map(Number);
+      return new Date(y, m-1, day).toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+    } catch { return d; }
+  }
+
+})();
+
+// ============ INIT ============
+buildDateTabs();
+buildParamGrid();
+renderMap();
+renderAgroStations();
+updateStatsSummary();
+updateDistrictList();
+
+
+// ═══════════════════════════════════════════════════════
+//  LAYOUT MANAGER
+// ═══════════════════════════════════════════════════════
+(function() {
+
+const STORAGE_KEY = 'imd_layout_v2';
+const canvas = document.getElementById('layout-canvas');
+const panels = {
+  sidebar:   document.querySelector('.sidebar'),
+  map:       document.getElementById('map'),
+  infopanel: document.querySelector('.infopanel'),
+};
+
+// ── Panel labels & icons ──────────────────────────────
+const PANEL_META = {
+  sidebar:   { label: 'FILTERS / DATES',  icon: '🎛️' },
+  map:       { label: 'KARNATAKA MAP',    icon: '🗺️' },
+  infopanel: { label: 'DISTRICT DETAIL',  icon: '📊' },
+};
+
+// ── Preset definitions ─────────────────────────────────
+// Each panel: { left%, top%, width%, height% }
+const PRESETS = {
+  default: {
+    name: 'Default', icon: '⊞',
+    preview: '<div style="flex:1"></div><div class="pp-map" style="flex:2"></div><div style="flex:1"></div>',
+    free: false,
+    panels: {
+      sidebar:   { l:0,   t:0, w:26, h:100 },
+      map:       { l:26,  t:0, w:48, h:100 },
+      infopanel: { l:74,  t:0, w:26, h:100 },
+    }
+  },
+  mapfocus: {
+    name: 'Map Focus', icon: '🗺️',
+    preview: '<div style="flex:0.6"></div><div class="pp-map" style="flex:3"></div><div style="flex:0.6"></div>',
+    free: false,
+    panels: {
+      sidebar:   { l:0,   t:0, w:18, h:100 },
+      map:       { l:18,  t:0, w:64, h:100 },
+      infopanel: { l:82,  t:0, w:18, h:100 },
+    }
+  },
+  splitview: {
+    name: 'Split View', icon: '▣',
+    preview: '<div class="pp-map" style="flex:1"></div><div style="width:2px"></div><div style="flex:1"></div>',
+    free: true,
+    panels: {
+      sidebar:   { l:0,   t:0, w:24, h:50 },
+      map:       { l:0,   t:50,w:50, h:50 },
+      infopanel: { l:50,  t:0, w:50, h:100 },
+    }
+  },
+  floating: {
+    name: 'Floating', icon: '⧉',
+    preview: '<div class="pp-map" style="flex:1;position:relative"><div style="position:absolute;top:2px;left:2px;width:35%;height:60%;background:var(--border);border-radius:2px"></div></div>',
+    free: true,
+    panels: {
+      sidebar:   { l:1,  t:5,  w:22, h:60 },
+      map:       { l:0,  t:0,  w:100,h:100 },
+      infopanel: { l:76, t:5,  w:23, h:88 },
+    }
+  },
+  stacked: {
+    name: 'Stacked', icon: '☰',
+    preview: '<div style="flex-direction:column;width:100%;display:flex;gap:2px"><div style="flex:1"></div><div class="pp-map" style="flex:2"></div><div style="flex:1"></div></div>',
+    free: true,
+    panels: {
+      sidebar:   { l:0,  t:0,   w:100, h:22 },
+      map:       { l:0,  t:22,  w:100, h:54 },
+      infopanel: { l:0,  t:76,  w:100, h:24 },
+    }
+  },
+  wide: {
+    name: 'Wide Map', icon: '⛶',
+    preview: '<div class="pp-map" style="flex:1"></div>',
+    free: false,
+    panels: {
+      sidebar:   { l:0,  t:0, w:0,  h:100 },
+      map:       { l:0,  t:0, w:100,h:100 },
+      infopanel: { l:0,  t:0, w:0,  h:100 },
+    }
+  },
+};
+
+// ── State ─────────────────────────────────────────────
+let editMode   = false;
+let panelOpen  = false;
+let currentPreset = 'default';
+let snapToGrid = true;
+let panelVisible = { sidebar: true, map: true, infopanel: true };
+let savedPos   = {};  // { panel: {x,y,w,h} } in pixels
+let interactInstances = {};
+
+// ── Positions (% of canvas) ────────────────────────────
+let positions = JSON.parse(JSON.stringify(PRESETS.default.panels));
+
+// ── Load from localStorage ─────────────────────────────
+function loadState() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    if (s.currentPreset) currentPreset = s.currentPreset;
+    if (s.positions)     positions     = s.positions;
+    if (s.panelVisible)  panelVisible  = Object.assign({}, panelVisible, s.panelVisible);
+    if (s.freeLayout !== undefined) {
+      if (s.freeLayout) canvas.classList.add('free-layout');
+    }
+  } catch(e) {}
+}
+
+function saveState() {
+  const isFree = canvas.classList.contains('free-layout');
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    currentPreset, positions, panelVisible, freeLayout: isFree
+  }));
+}
+
+// ── Apply positions to DOM ─────────────────────────────
+function applyPositions(pos, animate) {
+  const cw = canvas.offsetWidth  || 1;
+  const ch = canvas.offsetHeight || 1;
+  Object.keys(pos).forEach(key => {
+    const el = panels[key];
+    if (!el) return;
+    const p = pos[key];
+    if (animate) el.style.transition = 'all 0.3s cubic-bezier(0.4,0,0.2,1)';
+    el.style.left   = (p.l / 100 * cw) + 'px';
+    el.style.top    = (p.t / 100 * ch) + 'px';
+    el.style.width  = (p.w / 100 * cw) + 'px';
+    el.style.height = (p.h / 100 * ch) + 'px';
+    if (animate) setTimeout(() => { el.style.transition = ''; }, 350);
+  });
+  // refresh leaflet
+  if (window._leafletMap) setTimeout(() => window._leafletMap.invalidateSize(), 50);
+}
+
+function pxToPercent(el) {
+  const cw = canvas.offsetWidth  || 1;
+  const ch = canvas.offsetHeight || 1;
+  return {
+    l: parseFloat(el.style.left)   / cw * 100,
+    t: parseFloat(el.style.top)    / ch * 100,
+    w: parseFloat(el.style.width)  / cw * 100,
+    h: parseFloat(el.style.height) / ch * 100,
+  };
+}
+
+// ── Build the layout panel HTML ─────────────────────────
+function buildLayoutPanel() {
+  const panel = document.getElementById('layout-panel');
+  if (!panel) return;
+
+  // Presets
+  const presetGrid = panel.querySelector('#lp-preset-grid');
+  if (presetGrid) {
+    presetGrid.innerHTML = '';
+    Object.keys(PRESETS).forEach(key => {
+      const p = PRESETS[key];
+      const btn = document.createElement('div');
+      btn.className = 'preset-btn' + (currentPreset === key ? ' active' : '');
+      btn.innerHTML = `<div class="preset-preview">${p.preview}</div><span>${p.name}</span>`;
+      btn.title = p.name;
+      btn.onclick = () => applyPreset(key);
+      presetGrid.appendChild(btn);
+    });
+  }
+
+  // Panel toggles
+  const toggles = panel.querySelector('#lp-toggles');
+  if (toggles) {
+    toggles.innerHTML = '';
+    Object.keys(PANEL_META).forEach(key => {
+      const m = PANEL_META[key];
+      const row = document.createElement('div');
+      row.className = 'panel-toggle-row';
+      const sw = `<div class="toggle-switch ${panelVisible[key] ? 'on' : ''}" id="toggle-${key}" onclick="LM.togglePanel('${key}')"></div>`;
+      row.innerHTML = `<span class="panel-toggle-label">${m.icon} ${m.label}</span>${sw}`;
+      toggles.appendChild(row);
+    });
+  }
+}
+
+// ── Apply a preset ─────────────────────────────────────
+function applyPreset(key) {
+  const preset = PRESETS[key];
+  if (!preset) return;
+  currentPreset = key;
+
+  // Toggle free layout class
+  if (preset.free) {
+    canvas.classList.add('free-layout');
+  } else {
+    canvas.classList.remove('free-layout');
+  }
+
+  positions = JSON.parse(JSON.stringify(preset.panels));
+
+  if (canvas.classList.contains('free-layout')) {
+    applyPositions(positions, true);
+    setupInteract();
+  } else {
+    // grid layout — remove inline styles
+    Object.values(panels).forEach(el => {
+      el.style.left = el.style.top = el.style.width = el.style.height = '';
+    });
+    applyGridColumns(key);
+  }
+
+  // Show all panels when applying preset (except wide)
+  if (key !== 'wide') {
+    Object.keys(panelVisible).forEach(k => { panelVisible[k] = true; });
+  }
+
+  // Ensure hidden panels handled
+  applyVisibility();
+  buildLayoutPanel();
+  saveState();
+  if (window._leafletMap) setTimeout(() => window._leafletMap.invalidateSize(), 100);
+}
+
+function applyGridColumns(presetKey) {
+  const p = PRESETS[presetKey] || PRESETS.default;
+  const sw = p.panels.sidebar.w;
+  const mw = p.panels.map.w;
+  const iw = p.panels.infopanel.w;
+  canvas.style.gridTemplateColumns = sw + '% ' + mw + '% ' + iw + '%';
+  canvas.style.gridTemplateAreas = '"sidebar map infopanel"';
+}
+
+// ── Panel visibility ────────────────────────────────────
+function togglePanel(key) {
+  panelVisible[key] = !panelVisible[key];
+  applyVisibility();
+  buildLayoutPanel();
+  saveState();
+  if (window._leafletMap) setTimeout(() => window._leafletMap.invalidateSize(), 100);
+}
+
+function applyVisibility() {
+  Object.keys(panels).forEach(key => {
+    const el = panels[key];
+    if (!el) return;
+    if (!panelVisible[key]) {
+      el.style.display = 'none';
+    } else {
+      el.style.display = key === 'map' ? 'block' : 'flex';
+    }
+  });
+  // Reflow grid when using grid layout
+  if (!canvas.classList.contains('free-layout')) {
+    const vis = Object.keys(panels).filter(k => panelVisible[k]);
+    const widths = vis.map(k => {
+      if (k === 'map') return '1fr';
+      return k === 'sidebar' ? '320px' : '300px';
+    });
+    const areas = '"' + vis.join(' ') + '"';
+    canvas.style.gridTemplateColumns = widths.join(' ');
+    canvas.style.gridTemplateAreas = areas;
+  }
+}
+
+// ── interact.js: dragging + resizing ───────────────────
+function setupInteract() {
+  if (!window.interact) return;
+  if (!canvas.classList.contains('free-layout')) return;
+
+  Object.keys(panels).forEach(key => {
+    const el = panels[key];
+    if (!el || !panelVisible[key]) return;
+
+    // Destroy previous instance if any
+    try { interact(el).unset(); } catch(e) {}
+
+    const handle = el.querySelector('.panel-drag-handle');
+
+    interact(el)
+      .draggable({
+        enabled: true,
+        allowFrom: handle || el,
+        ignoreFrom: '.sidebar-scroll, .infopanel, input, button, select, .drop-zone',
+        listeners: {
+          move(event) {
+            if (!editMode) return;
+            const cw = canvas.offsetWidth, ch = canvas.offsetHeight;
+            let x = (parseFloat(el.style.left) || 0) + event.dx;
+            let y = (parseFloat(el.style.top)  || 0) + event.dy;
+            if (snapToGrid) {
+              const gs = Math.max(cw, ch) / 40;
+              x = Math.round(x / gs) * gs;
+              y = Math.round(y / gs) * gs;
+            }
+            x = Math.max(0, Math.min(x, cw - 80));
+            y = Math.max(0, Math.min(y, ch - 40));
+            el.style.left = x + 'px';
+            el.style.top  = y + 'px';
+          },
+          end() {
+            positions[key] = pxToPercent(el);
+            saveState();
+          }
+        }
+      })
+      .resizable({
+        enabled: true,
+        edges: { left: true, right: true, bottom: true, top: true },
+        listeners: {
+          move(event) {
+            if (!editMode) return;
+            const cw = canvas.offsetWidth, ch = canvas.offsetHeight;
+            let w = Math.max(120, event.rect.width);
+            let h = Math.max(80,  event.rect.height);
+            let x = (parseFloat(el.style.left) || 0) + event.deltaRect.left;
+            let y = (parseFloat(el.style.top)  || 0) + event.deltaRect.top;
+            if (snapToGrid) {
+              const gs = Math.max(cw, ch) / 40;
+              w = Math.round(w / gs) * gs;
+              h = Math.round(h / gs) * gs;
+            }
+            el.style.width  = w + 'px';
+            el.style.height = h + 'px';
+            el.style.left   = x + 'px';
+            el.style.top    = y + 'px';
+            if (window._leafletMap) window._leafletMap.invalidateSize();
+          },
+          end() {
+            positions[key] = pxToPercent(el);
+            saveState();
+          }
+        }
+      });
+  });
+}
+
+function teardownInteract() {
+  Object.values(panels).forEach(el => {
+    try { interact(el).unset(); } catch(e) {}
+  });
+}
+
+// ── Edit mode toggle ────────────────────────────────────
+function toggleEditMode() {
+  editMode = !editMode;
+  document.body.classList.toggle('layout-edit', editMode);
+
+  if (editMode) {
+    // Switch to free layout if not already
+    if (!canvas.classList.contains('free-layout')) {
+      enterFreeLayout();
+    }
+    setupInteract();
+  } else {
+    // Keep positions, just exit edit mode (interact still active)
+    saveState();
+  }
+  updateEditBtn();
+}
+
+function enterFreeLayout() {
+  canvas.classList.add('free-layout');
+  const cw = canvas.offsetWidth, ch = canvas.offsetHeight;
+  // Set positions from current grid
+  const defaults = positions;
+  applyPositions(defaults, false);
+}
+
+function updateEditBtn() {
+  const btn = document.getElementById('layoutEditBtn');
+  if (!btn) return;
+  btn.innerHTML = editMode
+    ? '<span class="layout-edit-dot"></span> DONE'
+    : '⊞ LAYOUT';
+}
+
+// ── Panel flyout toggle ─────────────────────────────────
+function togglePanel_flyout() {
+  panelOpen = !panelOpen;
+  const el = document.getElementById('layout-panel');
+  if (el) el.classList.toggle('open', panelOpen);
+  buildLayoutPanel();
+}
+
+// ── Reset layout ─────────────────────────────────────────
+function resetLayout() {
+  localStorage.removeItem(STORAGE_KEY);
+  currentPreset = 'default';
+  canvas.classList.remove('free-layout');
+  canvas.style.gridTemplateColumns = '';
+  canvas.style.gridTemplateAreas   = '';
+  Object.values(panels).forEach(el => {
+    el.style.left = el.style.top = el.style.width = el.style.height = el.style.display = '';
+  });
+  panelVisible = { sidebar: true, map: true, infopanel: true };
+  positions = JSON.parse(JSON.stringify(PRESETS.default.panels));
+  editMode = false;
+  document.body.classList.remove('layout-edit');
+  teardownInteract();
+  buildLayoutPanel();
+  updateEditBtn();
+  if (window._leafletMap) setTimeout(() => window._leafletMap.invalidateSize(), 100);
+}
+
+// ── Inject drag handles into panels ─────────────────────
+function injectDragHandles() {
+  Object.keys(panels).forEach(key => {
+    const el = panels[key];
+    if (!el) return;
+    const handle = document.createElement('div');
+    handle.className = 'panel-drag-handle';
+    handle.innerHTML = `
+      <div class="panel-drag-dots">
+        <span></span><span></span><span></span>
+        <span></span><span></span><span></span>
+      </div>
+      <span class="panel-drag-label">${PANEL_META[key].label}</span>
+      <button class="panel-hide-btn" title="Hide panel" onclick="LM.togglePanel('${key}')">✕</button>
+    `;
+    el.insertBefore(handle, el.firstChild);
+  });
+}
+
+// ── Resize handles ────────────────────────────────────────
+function injectResizeHandles() {
+  Object.values(panels).forEach(el => {
+    if (!el) return;
+    ['resize-se','resize-e','resize-s','resize-n','resize-w'].forEach(cls => {
+      const rh = document.createElement('div');
+      rh.className = 'resize-handle ' + cls;
+      el.appendChild(rh);
+    });
+  });
+}
+
+// ── Init ─────────────────────────────────────────────────
+function init() {
+  loadState();
+  injectDragHandles();
+  injectResizeHandles();
+
+  const isFree = canvas.classList.contains('free-layout');
+  if (isFree) {
+    canvas.classList.add('free-layout');
+    const cw = canvas.offsetWidth, ch = canvas.offsetHeight;
+    applyPositions(positions, false);
+    setupInteract();
+  } else {
+    applyGridColumns(currentPreset);
+    canvas.style.gridTemplateColumns = canvas.style.gridTemplateColumns || '';
+  }
+
+  applyVisibility();
+
+  // Close flyout on outside click
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#layout-panel') && !e.target.closest('#layoutPanelBtn')) {
+      panelOpen = false;
+      const el = document.getElementById('layout-panel');
+      if (el) el.classList.remove('open');
+    }
+  });
+
+  // Recalc on window resize
+  window.addEventListener('resize', () => {
+    if (canvas.classList.contains('free-layout')) {
+      applyPositions(positions, false);
+    }
+    if (window._leafletMap) window._leafletMap.invalidateSize();
+  });
+}
+
+// ── Public API ────────────────────────────────────────────
+window.LM = {
+  toggleEditMode,
+  togglePanel_flyout,
+  togglePanel,
+  applyPreset,
+  resetLayout,
+  get snapToGrid() { return snapToGrid; },
+  set snapToGrid(v) { snapToGrid = v; },
+};
+
+// Run after DOM ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  setTimeout(init, 0);
+}
+
+})();
+
+</script>
+</body>
+</html>
